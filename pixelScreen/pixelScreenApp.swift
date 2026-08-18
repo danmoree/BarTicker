@@ -108,9 +108,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func trackChanged(to info: NowPlaying?) {
         if let info {
-            // The transport glyph says whether it's playing, so the title no
-            // longer has to spend columns spelling out "PAUSED".
-            let indicator = info.isPlaying ? "\u{25B6}" : "\u{23F8}"
+            // The glyph says whether it's playing, so the title no longer has
+            // to spend columns spelling out "PAUSED".
+            let indicator = info.isPlaying ? "\u{266B}" : "\u{23F8}"
             trackLine.text = "\(indicator) \(info.title) \u{2014} \(info.artist)"
         } else {
             switch nowPlaying.trouble {

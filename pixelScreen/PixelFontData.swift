@@ -8,7 +8,8 @@
 //  to guess which dots a 1-dot-wide stem or a diagonal should land on, so every
 //  glyph comes out slightly broken. Here each character is drawn explicitly.
 //
-//  Each glyph is 9 rows tall and 5 columns wide:
+//  Each glyph is 9 rows tall, and 5 columns wide unless it says otherwise —
+//  the rasterizer takes the width from the art, so a symbol can run wider:
 //    rows 0-6  capital height (lowercase x-height starts at row 2)
 //    rows 7-8  below the baseline, for descenders
 //
@@ -19,7 +20,6 @@
 enum PixelFontData {
 
     static let rows = 9
-    static let columns = 5
 
     /// Rows 0..<capRows are the capital band; the rest hang below the baseline.
     static let capRows = 7
@@ -149,6 +149,7 @@ enum PixelFontData {
         // space proportionally. Anything added here is usable from any source.
 
         "\u{266A}": ["..###", "..#.#", "..#..", "..#..", "..#..", "###..", "###..", ".....", "....."],   // note
+        "\u{266B}": ["..######", "..######", "..#....#", "..#....#", "..#....#", "###..###", "###..###", "........", "........"],   // beamed pair
         "\u{25B6}": ["#....", "##...", "###..", "####.", "###..", "##...", "#....", ".....", "....."],   // play
         "\u{23F8}": ["##.##", "##.##", "##.##", "##.##", "##.##", "##.##", "##.##", ".....", "....."],   // pause
         "\u{25B2}": ["..#..", "..#..", ".###.", ".###.", "#####", "#####", ".....", ".....", "....."],   // up

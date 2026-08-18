@@ -63,7 +63,10 @@ enum PixelFont {
 
     private static func strips(from art: [String]) -> [[Bool]] {
         let grid = art.map { Array($0) }
-        return (0..<PixelFontData.columns).map { x in
+        // Width comes from the art itself: letters share a 5-wide grid, but a
+        // symbol is free to draw itself wider.
+        let width = grid.map(\.count).max() ?? 0
+        return (0..<width).map { x in
             (0..<rows).map { y in
                 guard y < grid.count, x < grid[y].count else { return false }
                 return grid[y][x] == "#"

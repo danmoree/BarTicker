@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         ticker.theme = Preferences.theme
+        ticker.usesHDR = Preferences.hdr && Preferences.displaySupportsHDR
 
         headline.text = Self.sampleText
         headline.scroll = .always
@@ -73,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // A width stored on a roomier setup may not fit this one.
         applyBoardWidth(CGFloat(Preferences.boardWidth))
         applyMode()
+
     }
 
     // MARK: Wiring
@@ -154,6 +156,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
              represented: $0.id as Any, image: $0.swatch())
         }, action: #selector(chooseTheme(_:))))
 
+        let hdr = choice(hdrItemTitle, #selector(toggleHDR),
+                         checked: Preferences.hdr && Preferences.displaySupportsHDR)
+        if !Preferences.displaySupportsHDR {
+            // No action means AppKit greys it out for us.
+            hdr.action = nil
+            hdr.target = nil
+        }
+        menu.addItem(hdr)
+
         menu.addItem(submenu("Scroll Speed", items: Preferences.speedChoices.map {
             (title: $0.name, checked: Preferences.scrollSpeed == $0.value,
              represented: $0.value as Any, image: nil)
@@ -178,6 +189,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ? "Automation permission needed"
                 : "Nothing playing"
         }
+    }
+
+    /// Headroom is granted dynamically, so a display that is capable in
+    /// principle can still be offering nothing at this brightness. Saying so
+    /// here beats letting the switch look broken.
+    private var hdrItemTitle: String {
+        guard Preferences.displaySupportsHDR else { return "HDR Glow (display has no headroom)" }
+        return Preferences.currentHeadroom > 1.0 ? "HDR Glow" : "HDR Glow — no headroom right now"
     }
 
     private func header(_ title: String) -> NSMenuItem {
@@ -242,6 +261,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let id = sender.representedObject as? String else { return }
         Preferences.theme = BoardTheme.named(id)
         ticker?.theme = Preferences.theme
+    }
+
+    @objc private func toggleHDR() {
+        Preferences.hdr.toggle()
+        ticker?.usesHDR = Preferences.hdr && Preferences.displaySupportsHDR
     }
 
     @objc private func chooseSpeed(_ sender: NSMenuItem) {

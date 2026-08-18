@@ -20,6 +20,7 @@ enum Preferences {
         static let scrollSpeed = "scrollSpeed"
         static let boardWidth = "boardWidth"
         static let theme = "theme"
+        static let hdr = "hdr"
     }
 
     static func register() {
@@ -29,6 +30,7 @@ enum Preferences {
             Key.scrollSpeed: 30.0,
             Key.boardWidth: defaultBoardWidth,
             Key.theme: BoardTheme.amber.id,
+            Key.hdr: false,
         ])
     }
 
@@ -68,6 +70,29 @@ enum Preferences {
     static var theme: BoardTheme {
         get { BoardTheme.named(UserDefaults.standard.string(forKey: Key.theme) ?? "") }
         set { UserDefaults.standard.set(newValue.id, forKey: Key.theme) }
+    }
+
+    /// Off by default. Apple's own note on the EDR properties is that they
+    /// "may have a significant impact on power consumption", and this view is
+    /// on screen all day.
+    static var hdr: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.hdr) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.hdr) }
+    }
+
+    /// Whether this display has any headroom to give. Reports the potential
+    /// rather than what is free this instant, since the available figure sits
+    /// at 1.0 until something actually asks for headroom.
+    static var displaySupportsHDR: Bool {
+        guard #available(macOS 26.0, *) else { return false }
+        return (NSScreen.main?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1.0
+    }
+
+    /// What the display is granting this instant, which is not the same as what
+    /// it is capable of: headroom is handed out dynamically and sits at 1.0
+    /// until the display has room above SDR white to give.
+    static var currentHeadroom: CGFloat {
+        NSScreen.main?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
     }
 
     static var showProgress: Bool {

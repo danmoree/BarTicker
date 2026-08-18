@@ -262,7 +262,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "pixelScreen reads the title of the track you are playing so it can show it in the menu bar.";
-				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "pixelScreen measures the audio your music player is sending to the speakers to drive the VU meter.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -298,7 +297,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "pixelScreen reads the title of the track you are playing so it can show it in the menu bar.";
-				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "pixelScreen measures the audio your music player is sending to the speakers to drive the VU meter.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

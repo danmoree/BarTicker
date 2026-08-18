@@ -20,9 +20,16 @@ final class TickerView: NSView {
     /// Dot diameter as a fraction of the spacing between dot centres.
     private let dotFill: CGFloat = 0.85
 
-    private let onColor  = NSColor(srgbRed: 1.00, green: 0.72, blue: 0.22, alpha: 1.0)
-    private let offColor = NSColor(srgbRed: 1.00, green: 0.72, blue: 0.22, alpha: 0.07)
-    private let panelColor = NSColor(srgbRed: 0.06, green: 0.05, blue: 0.04, alpha: 1.0)
+    /// Changing this throws away the cached grid: the unlit dots are baked into
+    /// it, so it is wrong the moment the scheme changes.
+    var theme: BoardTheme = .amber {
+        didSet {
+            guard theme != oldValue else { return }
+            background = nil
+            previous = []
+            needsDisplay = true
+        }
+    }
 
     /// 30 divides evenly into the scroll speeds on offer, so text advances by a
     /// whole number of columns every frame instead of stalling on some of them.
@@ -236,7 +243,7 @@ final class TickerView: NSView {
         }
 
         ctx.addPath(lit)
-        ctx.setFillColor(onColor.cgColor)
+        ctx.setFillColor(theme.on.cgColor)
         ctx.fillPath()
     }
 
@@ -263,7 +270,7 @@ final class TickerView: NSView {
 
         layerContext.addPath(CGPath(roundedRect: geo.panel, cornerWidth: 3,
                                     cornerHeight: 3, transform: nil))
-        layerContext.setFillColor(panelColor.cgColor)
+        layerContext.setFillColor(theme.panel.cgColor)
         layerContext.fillPath()
 
         if geo.visibleColumns > 0 {
@@ -280,7 +287,7 @@ final class TickerView: NSView {
             }
 
             layerContext.addPath(dark)
-            layerContext.setFillColor(offColor.cgColor)
+            layerContext.setFillColor(theme.off.cgColor)
             layerContext.fillPath()
         }
 

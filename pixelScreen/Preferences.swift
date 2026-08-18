@@ -19,6 +19,7 @@ enum Preferences {
         static let showProgress = "showProgress"
         static let scrollSpeed = "scrollSpeed"
         static let boardWidth = "boardWidth"
+        static let theme = "theme"
     }
 
     static func register() {
@@ -27,6 +28,7 @@ enum Preferences {
             Key.showProgress: true,
             Key.scrollSpeed: 30.0,
             Key.boardWidth: defaultBoardWidth,
+            Key.theme: BoardTheme.amber.id,
         ])
     }
 
@@ -61,6 +63,11 @@ enum Preferences {
             let clamped = min(max(newValue, boardWidthRange.lowerBound), boardWidthRange.upperBound)
             UserDefaults.standard.set(clamped, forKey: Key.boardWidth)
         }
+    }
+
+    static var theme: BoardTheme {
+        get { BoardTheme.named(UserDefaults.standard.string(forKey: Key.theme) ?? "") }
+        set { UserDefaults.standard.set(newValue.id, forKey: Key.theme) }
     }
 
     static var showProgress: Bool {

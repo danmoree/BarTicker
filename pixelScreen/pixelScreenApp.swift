@@ -54,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.applyBoardWidth(width)
         }
 
+        ticker.theme = Preferences.theme
+
         headline.text = Self.sampleText
         headline.scroll = .always
         trackLine.scroll = .ifOverflow
@@ -144,17 +146,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let reset = NSMenuItem(title: "Reset Width", action: #selector(resetWidth),
                                keyEquivalent: "")
         reset.target = self
-        reset.isEnabled = Preferences.boardWidth != Preferences.defaultBoardWidth
         menu.addItem(reset)
 
         menu.addItem(.separator())
-        menu.addItem(header("Scroll Speed"))
-        for choiceOption in Preferences.speedChoices {
-            let item = choice(choiceOption.name, #selector(chooseSpeed(_:)),
-                              checked: Preferences.scrollSpeed == choiceOption.value)
-            item.representedObject = choiceOption.value
-            menu.addItem(item)
-        }
+        menu.addItem(submenu("Color", items: BoardTheme.all.map {
+            (title: $0.name, checked: Preferences.theme == $0,
+             represented: $0.id as Any, image: $0.swatch())
+        }, action: #selector(chooseTheme(_:))))
+
+        menu.addItem(submenu("Scroll Speed", items: Preferences.speedChoices.map {
+            (title: $0.name, checked: Preferences.scrollSpeed == $0.value,
+             represented: $0.value as Any, image: nil)
+        }, action: #selector(chooseSpeed(_:))))
 
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit pixelScreen",
@@ -181,6 +184,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
         return item
+    }
+
+    private func submenu(_ title: String,
+                         items: [(title: String, checked: Bool, represented: Any, image: NSImage?)],
+                         action: Selector) -> NSMenuItem {
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sub = NSMenu(title: title)
+        for entry in items {
+            let item = choice(entry.title, action, checked: entry.checked)
+            item.representedObject = entry.represented
+            item.image = entry.image
+            sub.addItem(item)
+        }
+        parent.submenu = sub
+        return parent
     }
 
     private func choice(_ title: String, _ action: Selector, checked: Bool) -> NSMenuItem {
@@ -218,6 +236,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleProgress() {
         Preferences.showProgress.toggle()
         rebuildZones()
+    }
+
+    @objc private func chooseTheme(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        Preferences.theme = BoardTheme.named(id)
+        ticker?.theme = Preferences.theme
     }
 
     @objc private func chooseSpeed(_ sender: NSMenuItem) {

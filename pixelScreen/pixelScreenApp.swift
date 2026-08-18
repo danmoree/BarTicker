@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         headline.text = Self.sampleText
         headline.scroll = .always
         trackLine.scroll = .ifOverflow
+        trackLine.change = .pushUp
         progress.source = { [weak self] in self?.nowPlaying.current?.fraction ?? 0 }
 
         nowPlaying.onChange = { [weak self] info in self?.trackChanged(to: info) }

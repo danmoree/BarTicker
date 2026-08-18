@@ -14,15 +14,26 @@ import AppKit
 enum Widget: String, CaseIterable {
     case nowPlaying
     case ticker
+    case stocks
     case weather
 
     var title: String {
         switch self {
         case .nowPlaying: return "Now Playing"
         case .ticker:     return "News Ticker"
+        case .stocks:     return "Stocks"
         case .weather:    return "Weather"
         }
     }
+}
+
+/// How the enabled widgets divide the panel up.
+enum BoardLayout: String {
+    /// One wide band that everything takes a turn in, read over time.
+    case band
+    /// A window each, side by side, every one of them scrolling its own
+    /// content independently — what a multi-panel sign does.
+    case windows
 }
 
 enum Preferences {
@@ -32,8 +43,10 @@ enum Preferences {
         static let scrollSpeed = "scrollSpeed"
         static let boardWidth = "boardWidth"
         static let theme = "theme"
+        static let layout = "layout"
         static let hdr = "hdr"
         static let feed = "feedURL"
+        static let symbols = "stockSymbols"
         static let weatherPlace = "weatherPlace"
         static let weatherLatitude = "weatherLatitude"
         static let weatherLongitude = "weatherLongitude"
@@ -51,13 +64,16 @@ enum Preferences {
         UserDefaults.standard.register(defaults: [
             Key.widget(.nowPlaying): true,
             Key.widget(.ticker): false,
+            Key.widget(.stocks): false,
             Key.widget(.weather): true,
             Key.showProgress: true,
             Key.scrollSpeed: 30.0,
             Key.boardWidth: defaultBoardWidth,
             Key.theme: BoardTheme.amber.id,
+            Key.layout: BoardLayout.windows.rawValue,
             Key.hdr: false,
             Key.feed: feedChoices[0].url,
+            Key.symbols: defaultSymbols,
             Key.weatherPlace: guessedPlace,
             Key.fahrenheit: Locale.current.measurementSystem == .us,
         ])
@@ -110,6 +126,19 @@ enum Preferences {
     /// The name of the built-in feed this is, or nil when it's a custom one.
     static var feedName: String? {
         feedChoices.first { $0.url == feed }?.name
+    }
+
+    // MARK: Stocks
+
+    /// Somewhere to start. The list is the user's to edit from the menu; this
+    /// only decides what the widget shows the first time it is switched on.
+    static let defaultSymbols = ["AAPL", "MSFT", "NVDA"]
+
+    /// Ticker symbols, in the order they crawl past. Yahoo's own spellings:
+    /// "^GSPC" for the S&P, "BTC-USD" for bitcoin.
+    static var stockSymbols: [String] {
+        get { UserDefaults.standard.stringArray(forKey: Key.symbols) ?? defaultSymbols }
+        set { UserDefaults.standard.set(newValue, forKey: Key.symbols) }
     }
 
     // MARK: Weather
@@ -188,6 +217,16 @@ enum Preferences {
             UserDefaults.standard.set(clamped, forKey: Key.boardWidth)
         }
     }
+
+    static var layout: BoardLayout {
+        get { BoardLayout(rawValue: UserDefaults.standard.string(forKey: Key.layout) ?? "") ?? .windows }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.layout) }
+    }
+
+    /// Dot columns a scrolling window needs before it stops being worth
+    /// reading. About eleven characters — enough that a word is on screen
+    /// whole rather than arriving letter by letter.
+    static let minimumWindowColumns = 60
 
     static var theme: BoardTheme {
         get { BoardTheme.named(UserDefaults.standard.string(forKey: Key.theme) ?? "") }

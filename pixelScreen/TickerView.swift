@@ -229,6 +229,10 @@ final class TickerView: NSView {
         return Geometry(panel: panel, pitch: pitch, visibleColumns: visible, xInset: xInset)
     }
 
+    /// Points per dot column, for callers that need to turn a column count
+    /// into a board width — sizing the status item to fit its windows, say.
+    var dotPitch: CGFloat { geometry().pitch }
+
     // MARK: Frame build
 
     /// Redraws the dot buffer from the zones. Returns whether anything changed.

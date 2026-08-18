@@ -5,39 +5,161 @@
 
 import AppKit
 
-enum BoardMode: String {
-    /// A headline crawling across the whole panel.
-    case ticker
-    /// Track title and progress bar.
+/// One thing the panel can show.
+///
+/// Widgets are not exclusive: several can be on at once and they lay out side
+/// by side as zones (see Board.swift). Only one of them can hold the flexible
+/// zone though, so the ones that need a whole line of text — the track title,
+/// the news crawl — take it in order of priority rather than sharing it.
+enum Widget: String, CaseIterable {
     case nowPlaying
+    case ticker
+    case weather
+
+    var title: String {
+        switch self {
+        case .nowPlaying: return "Now Playing"
+        case .ticker:     return "News Ticker"
+        case .weather:    return "Weather"
+        }
+    }
 }
 
 enum Preferences {
 
     private enum Key {
-        static let mode = "mode"
         static let showProgress = "showProgress"
         static let scrollSpeed = "scrollSpeed"
         static let boardWidth = "boardWidth"
         static let theme = "theme"
         static let hdr = "hdr"
+        static let feed = "feedURL"
+        static let weatherPlace = "weatherPlace"
+        static let weatherLatitude = "weatherLatitude"
+        static let weatherLongitude = "weatherLongitude"
+        static let weatherResolved = "weatherResolvedPlace"
+        static let fahrenheit = "weatherFahrenheit"
+
+        static func widget(_ widget: Widget) -> String { "widget.\(widget.rawValue)" }
+
+        /// Superseded by the per-widget keys. Read once, to carry a previous
+        /// install's choice across.
+        static let legacyMode = "mode"
     }
 
     static func register() {
         UserDefaults.standard.register(defaults: [
-            Key.mode: BoardMode.nowPlaying.rawValue,
+            Key.widget(.nowPlaying): true,
+            Key.widget(.ticker): false,
+            Key.widget(.weather): true,
             Key.showProgress: true,
             Key.scrollSpeed: 30.0,
             Key.boardWidth: defaultBoardWidth,
             Key.theme: BoardTheme.amber.id,
             Key.hdr: false,
+            Key.feed: feedChoices[0].url,
+            Key.weatherPlace: guessedPlace,
+            Key.fahrenheit: Locale.current.measurementSystem == .us,
         ])
+        migrateMode()
     }
 
-    static var mode: BoardMode {
-        get { BoardMode(rawValue: UserDefaults.standard.string(forKey: Key.mode) ?? "") ?? .nowPlaying }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.mode) }
+    /// The panel used to be one mode at a time. Somebody who left it on the
+    /// news ticker should not find it showing their music after an update.
+    private static func migrateMode() {
+        let defaults = UserDefaults.standard
+        guard let mode = defaults.string(forKey: Key.legacyMode) else { return }
+        defaults.removeObject(forKey: Key.legacyMode)
+
+        let wasTicker = mode == "ticker"
+        set(.ticker, on: wasTicker)
+        set(.nowPlaying, on: !wasTicker)
     }
+
+    // MARK: Widgets
+
+    static func isOn(_ widget: Widget) -> Bool {
+        UserDefaults.standard.bool(forKey: Key.widget(widget))
+    }
+
+    static func set(_ widget: Widget, on: Bool) {
+        UserDefaults.standard.set(on, forKey: Key.widget(widget))
+    }
+
+    // MARK: News ticker
+
+    struct FeedChoice {
+        let name: String
+        let url: String
+    }
+
+    static let feedChoices = [
+        FeedChoice(name: "Hacker News", url: "https://hnrss.org/frontpage"),
+        FeedChoice(name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml"),
+        FeedChoice(name: "NPR News", url: "https://feeds.npr.org/1001/rss.xml"),
+        FeedChoice(name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index"),
+    ]
+
+    static var feed: String {
+        get { UserDefaults.standard.string(forKey: Key.feed) ?? feedChoices[0].url }
+        set { UserDefaults.standard.set(newValue, forKey: Key.feed) }
+    }
+
+    static var feedURL: URL? { URL(string: feed) }
+
+    /// The name of the built-in feed this is, or nil when it's a custom one.
+    static var feedName: String? {
+        feedChoices.first { $0.url == feed }?.name
+    }
+
+    // MARK: Weather
+
+    /// A first guess at where the user is, taken from the time zone.
+    ///
+    /// The alternative is CoreLocation, which means a second permission prompt
+    /// on top of the Automation one for a widget that only needs to be right to
+    /// the nearest city. The time zone is already on the machine, costs
+    /// nothing, and is usually correct; anyone it's wrong for can type their
+    /// own in from the menu.
+    private static var guessedPlace: String {
+        let identifier = TimeZone.current.identifier
+        guard let city = identifier.split(separator: "/").last else { return "New York" }
+        return city.replacingOccurrences(of: "_", with: " ")
+    }
+
+    static var weatherPlace: String {
+        get { UserDefaults.standard.string(forKey: Key.weatherPlace) ?? guessedPlace }
+        set { UserDefaults.standard.set(newValue, forKey: Key.weatherPlace) }
+    }
+
+    /// Coordinates are stored alongside the name they were looked up for, so a
+    /// changed place is detectable and a stable one never gets geocoded twice.
+    static var weatherCoordinate: (latitude: Double, longitude: Double)? {
+        get {
+            let defaults = UserDefaults.standard
+            guard defaults.string(forKey: Key.weatherResolved) == weatherPlace,
+                  defaults.object(forKey: Key.weatherLatitude) != nil else { return nil }
+            return (defaults.double(forKey: Key.weatherLatitude),
+                    defaults.double(forKey: Key.weatherLongitude))
+        }
+        set {
+            let defaults = UserDefaults.standard
+            guard let newValue else {
+                defaults.removeObject(forKey: Key.weatherResolved)
+                return
+            }
+            defaults.set(newValue.latitude, forKey: Key.weatherLatitude)
+            defaults.set(newValue.longitude, forKey: Key.weatherLongitude)
+            defaults.set(weatherPlace, forKey: Key.weatherResolved)
+        }
+    }
+
+    static var fahrenheit: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.fahrenheit) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.fahrenheit) }
+    }
+
+    // MARK: Panel
 
     static let defaultBoardWidth: Double = 320
 

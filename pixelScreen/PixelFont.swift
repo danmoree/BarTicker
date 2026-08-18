@@ -82,6 +82,20 @@ enum PixelFont {
         return Array(columns[first...last])
     }
 
+    // MARK: Measurement
+
+    /// How many dot columns `rasterize` would produce. Zones that size
+    /// themselves to their content ask this rather than rasterizing and
+    /// throwing the bitmap away.
+    static func width(of text: String) -> Int {
+        var width = 0
+        for character in text {
+            if width > 0 { width += letterSpacing }
+            width += columns(for: character).count
+        }
+        return width
+    }
+
     // MARK: Composition
 
     static func rasterize(_ text: String) -> PixelBitmap {

@@ -66,6 +66,12 @@ final class NowPlayingMonitor {
     private var timer: Timer?
     private var compiled: [String: NSAppleScript] = [:]
 
+    /// Held so they can be handed back. The block-based observer API registers
+    /// an opaque token rather than the caller, so `removeObserver(self)` takes
+    /// nothing away — and a stopped monitor would keep running AppleScript
+    /// every time a player announced a change.
+    private var observers: [NSObjectProtocol] = []
+
     /// The first poll has to report even when it finds nothing, otherwise the
     /// panel sits empty because "no track" matches the state we started in.
     private var hasReported = false
@@ -82,11 +88,12 @@ final class NowPlayingMonitor {
         let notifications = DistributedNotificationCenter.default()
         for name in ["com.spotify.client.PlaybackStateChanged",
                      "com.apple.iTunes.playerInfo"] {
-            notifications.addObserver(
+            let observer = notifications.addObserver(
                 forName: Notification.Name(name), object: nil, queue: .main
             ) { [weak self] _ in
                 self?.refresh()
             }
+            observers.append(observer)
         }
 
         // Only a safety net: the notifications above catch every real change,
@@ -103,8 +110,13 @@ final class NowPlayingMonitor {
     func stop() {
         timer?.invalidate()
         timer = nil
-        DistributedNotificationCenter.default().removeObserver(self)
+        observers.forEach(DistributedNotificationCenter.default().removeObserver)
+        observers.removeAll()
         current = nil
+
+        // The next start has to report whatever it finds, including nothing:
+        // its first poll is compared against the state we are leaving here.
+        hasReported = false
     }
 
     // MARK: Polling

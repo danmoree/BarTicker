@@ -317,6 +317,32 @@ final class TextLayer: BoardLayer {
     }
 }
 
+// MARK: - Divider
+
+/// A dotted vertical rule, for setting one widget's zone off from the next.
+///
+/// Dotted rather than solid because a solid line of lit dots reads as brighter
+/// than anything around it on a board this small, and pulls the eye away from
+/// the thing it is supposed to be separating.
+final class DividerLayer: BoardLayer {
+
+    /// Which column of its own zone the rule sits in, so the zone's remaining
+    /// columns act as the gap on either side. Set past the middle: text
+    /// arrives from the left and needs more clearance on that side than the
+    /// fixed content sitting after it.
+    var column = 2
+
+    func render(into columns: UnsafeMutableBufferPointer<DotColumn>, at time: BoardTime) {
+        guard column >= 0, column < columns.count else { return }
+
+        var bits: DotColumn = 0
+        for row in stride(from: Board.textTop, to: Board.rows, by: 2) {
+            bits |= 1 << DotColumn(row)
+        }
+        columns[column] |= bits
+    }
+}
+
 // MARK: - Progress
 
 /// A thin bar along the top margin — the one row text never occupies, so it

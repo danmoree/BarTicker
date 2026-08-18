@@ -5,6 +5,11 @@
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 
+	<!-- The news ticker and the weather widget both fetch over HTTPS. Outbound
+	     only: nothing here listens. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
 	<!-- Hardened runtime and the sandbox both block Apple Events without this.
 	     It is how the now-playing lookup reaches Spotify and Music. -->
 	<key>com.apple.security.automation.apple-events</key>

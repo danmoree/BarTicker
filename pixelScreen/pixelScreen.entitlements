@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- Hardened runtime and the sandbox both block Apple Events without this.
+	     It is how the now-playing lookup reaches Spotify and Music. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+
+	<!-- Inside the sandbox the blanket entitlement above is not enough: each
+	     app we script has to be named. Add a bundle id here to support another
+	     player. -->
+	<key>com.apple.security.temporary-exception.apple-events</key>
+	<array>
+		<string>com.spotify.client</string>
+		<string>com.apple.Music</string>
+	</array>
+
+</dict>
+</plist>

@@ -163,12 +163,57 @@ enum PixelFontData {
         // a shape at a glance, and five columns is not enough to tell rain from
         // snow. The rasterizer takes each one's width from the art.
 
-        "\u{2600}": ["...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#...#.", "...#...", ".......", "......."],   // clear
-        "\u{26C5}": ["...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#####.", "#######", ".......", "......."],   // partly cloudy
+        "\u{2600}": ["...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#...#.", "...#...", ".......", "......."],   // clear (still form; animated in `variants`)
+        "\u{26C5}": ["...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#####.", "#######", ".......", "......."],   // partly cloudy (still form)
         "\u{2601}": ["..###..", ".#####.", "#######", "#######", ".#####.", ".......", ".......", ".......", "......."],   // overcast
         "\u{2261}": ["#####..", ".......", ".#####.", ".......", "..#####", ".......", ".......", ".......", "......."],   // fog
         "\u{2602}": ["..###..", ".#####.", "#######", "#######", ".#.#.#.", "#.#.#..", ".......", ".......", "......."],   // rain
         "\u{2744}": ["#..#..#", ".#.#.#.", "..###..", "#######", "..###..", ".#.#.#.", "#..#..#", ".......", "......."],   // snow
         "\u{26A1}": ["...##", "..##.", ".##..", "#####", "..##.", ".##..", "##...", ".....", "....."],   // thunderstorm
+    ]
+
+    // MARK: Animation
+
+    /// Glyphs that are drawn more than once and cycled in place.
+    ///
+    /// Frames do not have to be the same width as each other: the rasterizer
+    /// trims a glyph's frames as a group, to the widest extent any of them
+    /// reaches, so a sparse frame keeps the position the full one established.
+    ///
+    /// The sun blooms rather than spins. Its rays go out from the disc and
+    /// come back — bare, compass points, all eight, compass points again —
+    /// which reads as something radiating instead of something strobing. The
+    /// sequence is a loop, so the last frame runs back into the first.
+
+    private static let sunDisc = [
+        ".......", ".......", "..###..", "..###..", "..###..", ".......", ".......", ".......", ".......",
+    ]
+
+    private static let sunCompass = [
+        "...#...", ".......", "..###..", "#.###.#", "..###..", ".......", "...#...", ".......", ".......",
+    ]
+
+    private static let sunFull = [
+        "...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#...#.", "...#...", ".......", ".......",
+    ]
+
+    /// The same bloom with a cloud across the bottom, so the sun behind it
+    /// keeps its own rays. There is no room for a ray below the disc here, so
+    /// this one blooms with what it has.
+    private static let cloudyDisc = [
+        ".......", ".......", "..###..", "..###..", "..###..", ".#####.", "#######", ".......", ".......",
+    ]
+
+    private static let cloudyCompass = [
+        "...#...", ".......", "..###..", "#.###.#", "..###..", ".#####.", "#######", ".......", ".......",
+    ]
+
+    private static let cloudyFull = [
+        "...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#####.", "#######", ".......", ".......",
+    ]
+
+    static let variants: [Character: [[String]]] = [
+        "\u{2600}": [sunDisc, sunCompass, sunFull, sunCompass],
+        "\u{26C5}": [cloudyDisc, cloudyCompass, cloudyFull, cloudyCompass],
     ]
 }

@@ -146,6 +146,13 @@ final class TextLayer: BoardLayer {
     /// Blank columns between the end of the text and its repeat.
     var gapColumns = 16
 
+    /// How often a glyph with more than one drawing changes to the next.
+    /// Three a second, so the sun's four-frame bloom takes a little over a
+    /// second to breathe in and out: slow enough to read as one movement
+    /// rather than a flicker, quick enough to notice out of the corner of an
+    /// eye without demanding attention.
+    var glyphAnimationRate: Double = 3
+
     var text: String = "" {
         didSet {
             guard text != oldValue else { return }
@@ -177,6 +184,8 @@ final class TextLayer: BoardLayer {
     private static let travel = Board.rows - Board.textTop + 1
 
     private var bitmap = PixelBitmap.empty
+    private var glyphFrames = 1
+    private var glyphFrame = 0
     private var displayed = ""
     private var pending: String?
     private var outgoing: PixelBitmap?
@@ -189,6 +198,7 @@ final class TextLayer: BoardLayer {
         guard width > 0 else { return }
 
         takePending(width: width, at: time)
+        animateGlyphs(at: time)
 
         switch phase {
 
@@ -271,9 +281,26 @@ final class TextLayer: BoardLayer {
         phase = .steady
     }
 
+    /// Swaps in the next drawing of any animated glyph.
+    ///
+    /// Re-rasterizing the whole line is the simplest way to do this and costs
+    /// nothing on a line that has no animated glyph in it, because `glyphFrames`
+    /// is 1 and this returns immediately.
+    private func animateGlyphs(at time: BoardTime) {
+        guard glyphFrames > 1 else { return }
+
+        let frame = Int(time.absolute * glyphAnimationRate) % glyphFrames
+        guard frame != glyphFrame else { return }
+
+        glyphFrame = frame
+        bitmap = PixelFont.rasterize(displayed, frame: frame)
+    }
+
     private func adopt(_ string: String) {
         displayed = string
         bitmap = PixelFont.rasterize(string)
+        glyphFrames = PixelFont.frameCount(of: string)
+        glyphFrame = 0
         epoch = nil          // new text starts from the left edge
         lastOffset = 0
     }

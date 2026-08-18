@@ -52,8 +52,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// line is still between turns, and a quote is a thing you read at a
     /// glance rather than follow across the board.
     private var stockIndex = 0
-    private var stockRotation: Timer?
-    private let stockDwell: TimeInterval = 5
+
+    /// The weather window turns the same way, between the current temperature
+    /// and today's high and low.
+    private var weatherIndex = 0
+
+    /// One timer for both, so two turning windows cost one wakeup rather than
+    /// two that drift against each other. It ticks at the shorter of the two
+    /// dwells and each window decides for itself whether its turn is due.
+    private var rotation: Timer?
+    private let rotationDwell: TimeInterval = 5
+
+    /// The weather window rests on the current temperature and only makes an
+    /// excursion to the range now and then. The range is context, not the
+    /// reading — a window that spent two thirds of its life showing tomorrow's
+    /// numbers would be answering a question nobody asked.
+    private let weatherRestDwell: TimeInterval = 30
+    private var weatherTurnedAt: CFTimeInterval = 0
 
     // MARK: Launch
 
@@ -144,11 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             stocks.stop()
         }
 
-        if Preferences.layout == .windows && Preferences.isOn(.stocks) {
-            startStockRotation()
+        if rotationNeeded {
+            startRotation()
         } else {
-            stockRotation?.invalidate()
-            stockRotation = nil
+            rotation?.invalidate()
+            rotation = nil
         }
 
         rebuildContent()
@@ -204,9 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 zones.append(Zone(.flexible, [stockLine]))
 
             case .weather:
-                let text = weatherBoardText
-                weatherLine.text = text
-                zones.append(Zone(.fixed(PixelFont.width(of: text) + 1), [weatherLine]))
+                refreshWeatherWindow()
+                zones.append(Zone(.fixed(weatherColumns), [weatherLine]))
             }
         }
         return zones
@@ -220,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let key = ["windows"]
                 + enabled.map(\.rawValue)
                 + [nowPlaying.current != nil && Preferences.showProgress ? "bar" : "",
-                   Preferences.isOn(.weather) ? weatherBoardText : ""]
+                   Preferences.isOn(.weather) ? "w\(weatherColumns)" : ""]
 
             let joined = key.joined(separator: "|")
             guard force || joined != layoutKey else { return }
@@ -244,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let showsProgress = Preferences.showProgress
             && Preferences.isOn(.nowPlaying)
             && nowPlaying.current != nil
-        let weatherText = Preferences.isOn(.weather) ? weatherBoardText : nil
+        let weatherColumnsOrNil = Preferences.isOn(.weather) ? weatherColumns : nil
 
         // Everything the layout depends on, and nothing that only changes what
         // a layer draws inside its own zone.
@@ -252,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "band",
             primary === trackLine ? "track" : (primary === crawl ? "crawl" : "none"),
             showsProgress ? "bar" : "",
-            weatherText ?? "",
+            weatherColumnsOrNil.map(String.init) ?? "",
         ].joined(separator: "|")
 
         guard force || key != layoutKey else { return }
@@ -266,15 +280,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             zones.append(Zone(.flexible, layers))
         }
 
-        if let weatherText {
-            weatherLine.text = weatherText
-            // The zone is cut to the text, plus a column of air on the right so
-            // the last dot isn't flush against the edge of the board.
-            let width = PixelFont.width(of: weatherText) + 1
+        if let weatherColumnsOrNil {
+            refreshWeatherWindow()
             if !zones.isEmpty {
                 zones.append(Zone(.fixed(4), [divider]))
             }
-            zones.append(Zone(.fixed(width), [weatherLine]))
+            zones.append(Zone(.fixed(weatherColumnsOrNil), [weatherLine]))
         }
 
         // Everything switched off. Better to say so than to look broken.
@@ -353,17 +364,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stockLine.text = quotes[stockIndex].boardText
     }
 
-    private func startStockRotation() {
-        guard stockRotation == nil else { return }
-        let t = Timer(timeInterval: stockDwell, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let count = self.stocks.quotes.count
-            guard count > 1 else { return }
-            self.stockIndex = (self.stockIndex + 1) % count
-            self.refreshStockWindow()
+    /// Whether anything on the board is currently a turning window.
+    private var rotationNeeded: Bool {
+        let turningStocks = Preferences.layout == .windows && Preferences.isOn(.stocks)
+        let turningWeather = Preferences.isOn(.weather) && Preferences.weatherHighLow
+        return turningStocks || turningWeather
+    }
+
+    private func startRotation() {
+        guard rotation == nil else { return }
+        weatherTurnedAt = CACurrentMediaTime()
+        let t = Timer(timeInterval: rotationDwell, repeats: true) { [weak self] _ in
+            self?.turnWindows()
         }
         RunLoop.main.add(t, forMode: .common)
-        stockRotation = t
+        rotation = t
+    }
+
+    private func turnWindows() {
+        if Preferences.layout == .windows, Preferences.isOn(.stocks) {
+            let count = stocks.quotes.count
+            if count > 1 {
+                stockIndex = (stockIndex + 1) % count
+                refreshStockWindow()
+            }
+        }
+
+        if Preferences.isOn(.weather) {
+            let count = weatherFrames.count
+            let dwell = weatherIndex == 0 ? weatherRestDwell : rotationDwell
+            let now = CACurrentMediaTime()
+
+            // Half a tick of slack: the timer fires a hair late as often as
+            // not, and without it a 30 second dwell waits for the 35 second
+            // tick every time.
+            if count > 1, now - weatherTurnedAt >= dwell - rotationDwell / 2 {
+                weatherIndex = (weatherIndex + 1) % count
+                weatherTurnedAt = now
+                refreshWeatherWindow()
+            }
+        }
+    }
+
+    // MARK: Weather window
+
+    /// The frames the weather window turns between.
+    private var weatherFrames: [String] {
+        guard let reading = weather.current else {
+            // A degree sign with nothing in front of it holds the window open
+            // at roughly its eventual width, so the layout doesn't jump when
+            // the first reading lands.
+            return ["\u{2014}\u{00B0}"]
+        }
+        return reading.boardFrames(fahrenheit: Preferences.fahrenheit,
+                                   highLow: Preferences.weatherHighLow)
+    }
+
+    /// Cut to the widest frame, not to the frame showing. A window that
+    /// resized on every turn would relayout the whole board twice a minute.
+    private var weatherColumns: Int {
+        (weatherFrames.map { PixelFont.width(of: $0) }.max() ?? 0) + 1
+    }
+
+    private func refreshWeatherWindow() {
+        let frames = weatherFrames
+        guard !frames.isEmpty else { return }
+        weatherIndex = min(weatherIndex, frames.count - 1)
+        weatherLine.text = frames[weatherIndex]
     }
 
     /// Composes the crawling line out of whatever wants to crawl.
@@ -412,17 +479,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func weatherChanged() {
         rebuildZones()
-    }
-
-    /// The short form the board shows: a condition glyph and a temperature.
-    private var weatherBoardText: String {
-        guard let reading = weather.current else {
-            // A degree sign with nothing in front of it holds the zone open at
-            // roughly its eventual width, so the layout doesn't jump when the
-            // first reading lands.
-            return "\u{2014}\u{00B0}"
-        }
-        return reading.boardText(fahrenheit: Preferences.fahrenheit)
     }
 
     // MARK: Menu
@@ -474,6 +530,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                       action: #selector(chooseLocation), keyEquivalent: "")
             location.target = self
             menu.addItem(location)
+            menu.addItem(choice("High / Low", #selector(toggleHighLow),
+                                checked: Preferences.weatherHighLow))
             menu.addItem(submenu("Units", items: [
                 (title: "Fahrenheit", checked: Preferences.fahrenheit,
                  represented: true as Any, image: nil),
@@ -735,6 +793,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         weather.place = entered
     }
 
+    @objc private func toggleHighLow() {
+        Preferences.weatherHighLow.toggle()
+        weatherTurnedAt = CACurrentMediaTime()
+        // Back to the current temperature, and the window is cut to its widest
+        // frame — so this changes the layout, not just what one zone draws.
+        weatherIndex = 0
+        applyWidgets()
+    }
+
     @objc private func chooseUnits(_ sender: NSMenuItem) {
         guard let fahrenheit = sender.representedObject as? Bool else { return }
         guard fahrenheit != Preferences.fahrenheit else { return }
@@ -763,7 +830,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for widget in Widget.allCases where Preferences.isOn(widget) {
             if count > 0 { total += 4 }          // the rule between windows
             switch widget {
-            case .weather: total += PixelFont.width(of: weatherBoardText) + 1
+            case .weather: total += weatherColumns
             default:       total += Preferences.minimumWindowColumns
             }
             count += 1

@@ -52,6 +52,7 @@ enum Preferences {
         static let weatherLongitude = "weatherLongitude"
         static let weatherResolved = "weatherResolvedPlace"
         static let fahrenheit = "weatherFahrenheit"
+        static let highLow = "weatherHighLow"
 
         static func widget(_ widget: Widget) -> String { "widget.\(widget.rawValue)" }
 
@@ -76,6 +77,7 @@ enum Preferences {
             Key.symbols: defaultSymbols,
             Key.weatherPlace: guessedPlace,
             Key.fahrenheit: Locale.current.measurementSystem == .us,
+            Key.highLow: true,
         ])
         migrateMode()
     }
@@ -181,6 +183,14 @@ enum Preferences {
             defaults.set(newValue.longitude, forKey: Key.weatherLongitude)
             defaults.set(weatherPlace, forKey: Key.weatherResolved)
         }
+    }
+
+    /// Today's forecast range alongside the current temperature. Worth a
+    /// switch of its own: it is the widest part of the weather window, and on
+    /// a narrow board those columns come out of the lines either side of it.
+    static var weatherHighLow: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.highLow) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.highLow) }
     }
 
     static var fahrenheit: Bool {

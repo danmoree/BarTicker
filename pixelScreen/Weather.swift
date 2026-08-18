@@ -19,24 +19,52 @@ struct Weather: Equatable {
     /// Degrees Celsius, as reported.
     var celsius: Double
 
+    /// Today's forecast range, in Celsius. Optional because a reading is still
+    /// worth showing if the daily block is missing.
+    var highCelsius: Double?
+    var lowCelsius: Double?
+
     /// WMO weather interpretation code.
     var code: Int
 
     var place: String
 
-    func degrees(fahrenheit: Bool) -> Int {
+    private static func degrees(_ celsius: Double, fahrenheit: Bool) -> Int {
         let value = fahrenheit ? celsius * 9 / 5 + 32 : celsius
         return Int(value.rounded())
     }
 
-    /// The line the board draws: a condition glyph and the temperature.
-    func boardText(fahrenheit: Bool) -> String {
-        "\(Weather.glyph(for: code)) \(degrees(fahrenheit: fahrenheit))\u{00B0}"
+    func degrees(fahrenheit: Bool) -> Int {
+        Self.degrees(celsius, fahrenheit: fahrenheit)
+    }
+
+    /// What the weather window shows, one frame at a time.
+    ///
+    /// The range is a second and third frame rather than more text on the
+    /// first: three temperatures side by side would triple the width of the
+    /// narrowest window on the board, and those columns come out of the lines
+    /// either side of it. The window turns over instead, the way the stock
+    /// window does.
+    func boardFrames(fahrenheit: Bool, highLow: Bool) -> [String] {
+        var frames = ["\(Weather.glyph(for: code)) \(degrees(fahrenheit: fahrenheit))\u{00B0}"]
+
+        if highLow, let high = highCelsius, let low = lowCelsius {
+            frames.append("\u{25B2} \(Self.degrees(high, fahrenheit: fahrenheit))\u{00B0}")
+            frames.append("\u{25BC} \(Self.degrees(low, fahrenheit: fahrenheit))\u{00B0}")
+        }
+        return frames
     }
 
     /// Written out for the menu, where there is room for words.
     func summary(fahrenheit: Bool) -> String {
-        "\(place)  \(degrees(fahrenheit: fahrenheit))\u{00B0}\(fahrenheit ? "F" : "C")  \(Weather.describe(code))"
+        var text = "\(place)  \(degrees(fahrenheit: fahrenheit))\u{00B0}\(fahrenheit ? "F" : "C")"
+        text += "  \(Weather.describe(code))"
+
+        if let high = highCelsius, let low = lowCelsius {
+            text += "   High \(Self.degrees(high, fahrenheit: fahrenheit))\u{00B0}"
+            text += "  Low \(Self.degrees(low, fahrenheit: fahrenheit))\u{00B0}"
+        }
+        return text
     }
 
     /// WMO code groups, collapsed to the handful of glyphs the font draws.
@@ -197,7 +225,20 @@ final class WeatherMonitor {
                 case code = "weather_code"
             }
         }
+
+        /// Arrays, one entry per forecast day; we ask for one.
+        struct Daily: Decodable {
+            let high: [Double]
+            let low: [Double]
+
+            enum CodingKeys: String, CodingKey {
+                case high = "temperature_2m_max"
+                case low = "temperature_2m_min"
+            }
+        }
+
         let current: Current
+        let daily: Daily?
     }
 
     private func fetchConditions(at coordinate: (latitude: Double, longitude: Double)) {
@@ -206,6 +247,11 @@ final class WeatherMonitor {
             URLQueryItem(name: "latitude", value: String(coordinate.latitude)),
             URLQueryItem(name: "longitude", value: String(coordinate.longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
+            URLQueryItem(name: "forecast_days", value: "1"),
+            // Without this the daily block is bucketed by GMT, so "today's
+            // high" would roll over at the wrong hour for most of the world.
+            URLQueryItem(name: "timezone", value: "auto"),
         ]
         guard let url = components.url else { return }
 
@@ -214,6 +260,8 @@ final class WeatherMonitor {
             switch result {
             case .success(let response):
                 let reading = Weather(celsius: response.current.temperature,
+                                      highCelsius: response.daily?.high.first,
+                                      lowCelsius: response.daily?.low.first,
                                       code: response.current.code,
                                       place: self.place)
                 guard reading != self.current || self.trouble != nil else { return }

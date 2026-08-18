@@ -43,22 +43,39 @@ enum PixelFont {
 
     // MARK: Glyph cache
 
-    /// A glyph as vertical strips: columns[x][y], y == 0 at the top.
-    private static var cache: [Character: [[Bool]]] = [:]
+    /// A glyph's drawings, each as vertical strips: frames[f][x][y], y == 0 at
+    /// the top. Most characters have exactly one.
+    private static var cache: [Character: [[[Bool]]]] = [:]
 
-    private static func columns(for character: Character) -> [[Bool]] {
+    private static func frames(for character: Character) -> [[[Bool]]] {
         if let cached = cache[character] { return cached }
 
-        let result: [[Bool]]
+        let result: [[[Bool]]]
         if character == " " {
-            result = Array(repeating: Array(repeating: false, count: rows), count: spaceWidth)
+            result = [Array(repeating: Array(repeating: false, count: rows), count: spaceWidth)]
+        } else if let arts = PixelFontData.variants[character] {
+            result = trimTogether(arts.map { strips(from: $0) })
         } else {
             let art = PixelFontData.glyphs[character] ?? PixelFontData.fallback
-            result = trim(strips(from: art))
+            result = [trim(strips(from: art))]
         }
 
         cache[character] = result
         return result
+    }
+
+    private static func columns(for character: Character, frame: Int = 0) -> [[Bool]] {
+        let drawings = frames(for: character)
+        return drawings[frame % drawings.count]
+    }
+
+    /// How many drawings a line cycles through. One means it is still.
+    static func frameCount(of text: String) -> Int {
+        var count = 1
+        for character in text {
+            count = max(count, frames(for: character).count)
+        }
+        return count
     }
 
     private static func strips(from art: [String]) -> [[Bool]] {
@@ -71,6 +88,30 @@ enum PixelFont {
                 guard y < grid.count, x < grid[y].count else { return false }
                 return grid[y][x] == "#"
             }
+        }
+    }
+
+    /// Trims a glyph's frames as a group, to the widest extent any of them
+    /// reaches.
+    ///
+    /// Trimming each frame to its own art would let a frame with its rays
+    /// pulled in come out narrower than the rest, and the line would twitch
+    /// sideways every time that frame came round. Sharing one width means a
+    /// frame can be as sparse as it likes.
+    private static func trimTogether(_ frames: [[[Bool]]]) -> [[[Bool]]] {
+        let width = frames.map(\.count).max() ?? 0
+        var bounds: (first: Int, last: Int)?
+
+        for x in 0..<width {
+            let lit = frames.contains { x < $0.count && $0[x].contains(true) }
+            guard lit else { continue }
+            bounds = (bounds?.first ?? x, x)
+        }
+
+        guard let bounds else { return frames.map { _ in [] } }
+        let blank = Array(repeating: false, count: rows)
+        return frames.map { frame in
+            (bounds.first...bounds.last).map { x in x < frame.count ? frame[x] : blank }
         }
     }
 
@@ -98,7 +139,10 @@ enum PixelFont {
 
     // MARK: Composition
 
-    static func rasterize(_ text: String) -> PixelBitmap {
+    /// `frame` selects which drawing of an animated glyph to use. Every frame
+    /// of a glyph is the same width, so a line's width and its scroll position
+    /// are unaffected by which one is showing.
+    static func rasterize(_ text: String, frame: Int = 0) -> PixelBitmap {
         guard !text.isEmpty else { return .empty }
 
         var composed: [[Bool]] = []
@@ -108,7 +152,7 @@ enum PixelFont {
             if !composed.isEmpty {
                 composed.append(contentsOf: Array(repeating: blank, count: letterSpacing))
             }
-            composed.append(contentsOf: columns(for: character))
+            composed.append(contentsOf: columns(for: character, frame: frame))
         }
 
         let width = composed.count

@@ -44,8 +44,7 @@ nothing is antialiased into place:
 
 ## The menu
 
-Clicking the panel opens everything there is to configure — there is no
-preferences window:
+Clicking the panel opens everything there is to configure:
 
 <p align="center">
   <img src="docs/menu.png" alt="The pixelScreen menu, showing widget toggles and the layout, colour and speed submenus" width="682">

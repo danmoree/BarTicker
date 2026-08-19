@@ -7,10 +7,8 @@
 <p align="center">A dot-matrix LED sign that lives in your macOS menu bar.</p>
 
 <p align="center">
-  <img src="docs/demo.gif" alt="The pixelScreen panel scrolling a track title alongside a stock quote and the temperature" width="457">
+  <img src="docs/desktop.jpg" alt="A macOS desktop with the pixelScreen panel running in the menu bar" width="800">
 </p>
-
-<p align="center"><em>Shown at actual size — that really is how much menu bar it takes up.</em></p>
 
 It renders a real dot grid in the status bar and scrolls whatever you turn on
 through it: the track you're playing, news headlines, stock quotes, and the
@@ -24,16 +22,18 @@ Everything is configured from the menu you get by clicking the panel.
 ## What you're looking at
 
 <p align="center">
-  <img src="docs/panel.png" alt="The panel showing a scrolling track title, a stock quote and the temperature" width="457">
+  <img src="docs/demo.gif" alt="The pixelScreen panel scrolling a track title alongside a stock quote and the temperature" width="457">
 </p>
+
+<p align="center"><em>Actual size — that really is how much menu bar it takes up.</em></p>
 
 Widgets aren't exclusive — several run at once and lay out side by side as
 *zones*, each owning a slice of the columns and deciding for itself whether it
-moves. Above, left to right: the now-playing title scrolling (with the thin
-progress bar riding along the top row), then `MSFT 484.10 ▲0.5%`, then `98°`.
-Only one zone can hold the flexible width, so the widgets that need a whole
-line of text — the track title, the news crawl — take it in priority order
-rather than sharing it.
+moves. Left to right above: the now-playing title scrolling (with the thin
+progress bar riding along the top row), then a stock quote, then the
+temperature. Only one zone can hold the flexible width, so the widgets that
+need a whole line of text — the track title, the news crawl — take it in
+priority order rather than sharing it.
 
 Up close, the dots are the whole point — there is no font rasterizer here, and
 nothing is antialiased into place:

@@ -70,6 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let weatherRestDwell: TimeInterval = 30
     private var weatherTurnedAt: CFTimeInterval = 0
 
+    /// Drives the board between widths when a window opens or closes.
+    private var widthAnimation: Timer?
+    private var widthTarget: CGFloat?
+
+
     // MARK: Launch
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -84,7 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         button.addSubview(ticker)
 
         ticker.onResize = { [weak self] width in
-            self?.applyBoardWidth(width)
+            guard let self else { return }
+            // Dragging is someone asking for a width of their own.
+            Preferences.autoSize = false
+            self.endWidthAnimation()
+            self.applyBoardWidth(width)
         }
 
         ticker.theme = Preferences.theme
@@ -126,8 +135,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyWidgets()
 
         // Four windows on a board sized for one line would be four slivers.
-        // This only ever grows, and the grip and Reset Width still overrule it.
-        if Preferences.layout == .windows { growToFitWindows() }
+        if Preferences.layout == .windows {
+            if Preferences.autoSize {
+                if let needed = widthNeeded() {
+                    applyBoardWidth(needed, persist: false, auto: true)
+                }
+            } else {
+                growToFitWindows()
+            }
+        }
     }
 
     // MARK: Wiring
@@ -191,6 +207,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return nil
     }
 
+    /// The widgets with something to show right now.
+    ///
+    /// A widget that is switched on but has nothing to say closes its window,
+    /// and with auto size on the board hands those columns back to the menu
+    /// bar. Now playing is the one that does this constantly — a paused
+    /// afternoon should not cost the bar a third of its width.
+    private var openWidgets: [Widget] {
+        Widget.allCases.filter { widget in
+            guard Preferences.isOn(widget) else { return false }
+
+            switch widget {
+            case .nowPlaying:
+                // Playing, not merely loaded: a paused track is not something
+                // to watch, so the window gives its columns straight back and
+                // takes them again when playback resumes. The pause glyph in
+                // the title still matters in the shared band, where this line
+                // holds the wide zone either way.
+                //
+                // A permission problem is the exception and keeps the window:
+                // that message is the only place the user finds out why it is
+                // empty.
+                if nowPlaying.trouble == .notAuthorized { return true }
+                return nowPlaying.current?.isPlaying == true
+            case .stocks:
+                return !Preferences.stockSymbols.isEmpty
+            case .ticker, .weather:
+                return true
+            }
+        }
+    }
+
+    /// Width of the zone holding the rule between two windows. The rule sits
+    /// in the middle of it, so this is also the air on either side: one column
+    /// of gap reads as a cramped join at this dot pitch, two reads as a seam.
+    private static let dividerColumns = 5
+
+    /// Shown when every window has closed but widgets are still switched on.
+    /// A status item with no width cannot be clicked, so something has to hold
+    /// the board open — and this says the app is running and idle rather than
+    /// broken.
+    private static let idleMark = "\u{266A}"
+
     /// A window each, left to right in widget order, with a rule between.
     ///
     /// Every window is flexible except the weather, which is cut to its own
@@ -201,8 +259,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func windowZones() -> [Zone] {
         var zones: [Zone] = []
 
-        for widget in Widget.allCases where Preferences.isOn(widget) {
-            if !zones.isEmpty { zones.append(Zone(.fixed(4), [divider])) }
+        for widget in openWidgets {
+            if !zones.isEmpty {
+                zones.append(Zone(.fixed(Self.dividerColumns), [divider]))
+            }
 
             switch widget {
             case .nowPlaying:
@@ -220,7 +280,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             case .weather:
                 refreshWeatherWindow()
-                zones.append(Zone(.fixed(weatherColumns), [weatherLine]))
+                let indent = zones.isEmpty ? Self.weatherLeading : 0
+                weatherLine.indent = indent
+                zones.append(Zone(.fixed(weatherColumns(indent: indent)), [weatherLine]))
             }
         }
         return zones
@@ -230,11 +292,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let ticker else { return }
 
         if Preferences.layout == .windows {
-            let enabled = Widget.allCases.filter { Preferences.isOn($0) }
+            let open = openWidgets
             let key = ["windows"]
-                + enabled.map(\.rawValue)
+                + open.map(\.rawValue)
                 + [nowPlaying.current != nil && Preferences.showProgress ? "bar" : "",
-                   Preferences.isOn(.weather) ? "w\(weatherColumns)" : ""]
+                   Preferences.isOn(.weather)
+                       ? "w\(weatherColumns(indent: weatherStandsAlone ? Self.weatherLeading : 0))"
+                       : ""]
 
             let joined = key.joined(separator: "|")
             guard force || joined != layoutKey else { return }
@@ -242,10 +306,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             var zones = windowZones()
             if zones.isEmpty {
-                trackLine.text = "NOTHING TO SHOW"
-                zones = [Zone(.flexible, [trackLine])]
+                // Every window closed is a different state from every widget
+                // switched off: the first is idle, the second needs to tell
+                // the user where the menu is.
+                let anythingOn = Widget.allCases.contains { Preferences.isOn($0) }
+                trackLine.text = anythingOn ? Self.idleMark : "NOTHING TO SHOW"
+                let width = anythingOn ? PixelFont.width(of: Self.idleMark) + 2 : 0
+                zones = [anythingOn ? Zone(.fixed(width), [trackLine])
+                                    : Zone(.flexible, [trackLine])]
             }
             ticker.zones = zones
+            applyAutoSize()
             return
         }
 
@@ -258,7 +329,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let showsProgress = Preferences.showProgress
             && Preferences.isOn(.nowPlaying)
             && nowPlaying.current != nil
-        let weatherColumnsOrNil = Preferences.isOn(.weather) ? weatherColumns : nil
+        // In the shared band the weather sits at the right unless nothing is
+        // crawling at all, in which case it is the only thing on the board.
+        let weatherIndent = primary == nil ? Self.weatherLeading : 0
+        let weatherColumnsOrNil = Preferences.isOn(.weather)
+            ? weatherColumns(indent: weatherIndent) : nil
 
         // Everything the layout depends on, and nothing that only changes what
         // a layer draws inside its own zone.
@@ -282,8 +357,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if let weatherColumnsOrNil {
             refreshWeatherWindow()
+            weatherLine.indent = weatherIndent
             if !zones.isEmpty {
-                zones.append(Zone(.fixed(4), [divider]))
+                zones.append(Zone(.fixed(Self.dividerColumns), [divider]))
             }
             zones.append(Zone(.fixed(weatherColumnsOrNil), [weatherLine]))
         }
@@ -314,6 +390,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .notAuthorized:
                 trackLine.text = "ALLOW AUTOMATION IN PRIVACY SETTINGS"
             default:
+                // Only ever seen in the shared-band layout, where this line
+                // holds the wide zone whatever the player is doing. In the
+                // windows layout the window has already closed.
                 trackLine.text = "NOTHING PLAYING"
             }
         }
@@ -420,10 +499,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                    highLow: Preferences.weatherHighLow)
     }
 
+    /// Air kept after the temperature, so the last dot is not flush against
+    /// the edge of the panel.
+    private static let weatherTrailing = 2
+
+    /// The same air before it, for a weather window with nothing to its left.
+    private static let weatherLeading = 2
+
     /// Cut to the widest frame, not to the frame showing. A window that
     /// resized on every turn would relayout the whole board twice a minute.
-    private var weatherColumns: Int {
-        (weatherFrames.map { PixelFont.width(of: $0) }.max() ?? 0) + 1
+    private func weatherColumns(indent: Int) -> Int {
+        let widest = weatherFrames.map { PixelFont.width(of: $0) }.max() ?? 0
+        return widest + indent + Self.weatherTrailing
+    }
+
+    /// Whether the weather window will be the leftmost thing on the board.
+    private var weatherStandsAlone: Bool {
+        openWidgets.first == .weather
     }
 
     private func refreshWeatherWindow() {
@@ -549,10 +641,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ], action: #selector(chooseLayout(_:))))
 
         if Preferences.layout == .windows {
-            let fit = NSMenuItem(title: "Fit Width to Windows", action: #selector(fitWidth),
-                                 keyEquivalent: "")
-            fit.target = self
-            menu.addItem(fit)
+            menu.addItem(choice("Auto Size", #selector(toggleAutoSize),
+                                checked: Preferences.autoSize))
+
+            if !Preferences.autoSize {
+                let fit = NSMenuItem(title: "Fit Width to Windows", action: #selector(fitWidth),
+                                     keyEquivalent: "")
+                fit.target = self
+                menu.addItem(fit)
+            }
         }
 
         let reset = NSMenuItem(title: "Reset Width", action: #selector(resetWidth),
@@ -640,6 +737,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// principle can still be offering nothing at this brightness. Saying so
     /// here beats letting the switch look broken.
     private var hdrItemTitle: String {
+        // The headroom tagging this needs only exists from macOS 26 on, so
+        // say that rather than blaming a display that may well be capable.
+        guard #available(macOS 26.0, *) else { return "HDR Glow (needs macOS 26)" }
         guard Preferences.displaySupportsHDR else { return "HDR Glow (display has no headroom)" }
         return Preferences.currentHeadroom > 1.0 ? "HDR Glow" : "HDR Glow — no headroom right now"
     }
@@ -727,7 +827,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Menu bar apps are not active when their menu is used; an alert from
         // an inactive app opens behind whatever is in front.
-        NSApp.activate()
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         let answer = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -823,17 +927,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyWidgets()
     }
 
-    /// The narrowest board that still gives every window room to read in.
+    /// The narrowest board that still gives every open window room to read in.
     private var columnsNeeded: Int {
+        let open = openWidgets
+        guard !open.isEmpty else { return PixelFont.width(of: Self.idleMark) + 2 }
+
         var total = 0
-        var count = 0
-        for widget in Widget.allCases where Preferences.isOn(widget) {
-            if count > 0 { total += 4 }          // the rule between windows
-            switch widget {
-            case .weather: total += weatherColumns
-            default:       total += Preferences.minimumWindowColumns
-            }
-            count += 1
+        for (index, widget) in open.enumerated() {
+            if index > 0 { total += Self.dividerColumns }
+            total += widget == .weather
+                ? weatherColumns(indent: index == 0 ? Self.weatherLeading : 0)
+                : Preferences.minimumWindowColumns
         }
         return total
     }
@@ -853,17 +957,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         applyBoardWidth(needed)
     }
 
+    // MARK: Auto size
+
+    /// Takes the board to whatever the open windows currently need.
+    ///
+    /// The width is not stored while this is driving: the number in
+    /// preferences stays the one the user last set by hand, so switching auto
+    /// size off puts their own board back rather than freezing whatever size
+    /// an idle moment happened to leave behind.
+    private func applyAutoSize() {
+        guard Preferences.autoSize, Preferences.layout == .windows,
+              let needed = widthNeeded() else { return }
+        animateBoardWidth(to: needed)
+    }
+
+    /// Slides the status item to a new width instead of snapping to it, so a
+    /// window closing reads as a window closing.
+    private func animateBoardWidth(to target: CGFloat) {
+        guard let item = statusItem else { return }
+
+        let clamped = Self.clamp(target, auto: true)
+        widthTarget = CGFloat(clamped)
+
+        guard abs(CGFloat(clamped) - item.length) > 1 else {
+            widthTarget = nil
+            return
+        }
+        guard widthAnimation == nil else { return }
+
+        let t = Timer(timeInterval: 1.0 / TickerView.frameRate, repeats: true) { [weak self] _ in
+            self?.stepBoardWidth()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        widthAnimation = t
+    }
+
+    private func stepBoardWidth() {
+        guard let item = statusItem, let target = widthTarget else {
+            return endWidthAnimation()
+        }
+
+        let remaining = target - item.length
+        guard abs(remaining) > 0.75 else {
+            item.length = target
+            return endWidthAnimation()
+        }
+
+        // A third of what is left each frame: fast at the start, easing into
+        // the new width rather than stopping dead on it.
+        item.length = item.length + remaining * 0.34
+    }
+
+    private func endWidthAnimation() {
+        widthAnimation?.invalidate()
+        widthAnimation = nil
+        widthTarget = nil
+    }
+
+    @objc private func toggleAutoSize() {
+        Preferences.autoSize.toggle()
+
+        if Preferences.autoSize {
+            applyAutoSize()
+        } else {
+            // Back to the width they last set by hand.
+            endWidthAnimation()
+            applyBoardWidth(CGFloat(Preferences.boardWidth))
+        }
+    }
+
     @objc private func resetWidth() {
+        Preferences.autoSize = false
+        endWidthAnimation()
         applyBoardWidth(Preferences.defaultBoardWidth)
     }
 
-    private func applyBoardWidth(_ requested: CGFloat) {
+    private func applyBoardWidth(_ requested: CGFloat,
+                                 persist: Bool = true, auto: Bool = false) {
         guard let item = statusItem else { return }
-        let range = Preferences.boardWidthRange
-        let width = min(max(Double(requested), range.lowerBound), range.upperBound)
+        let width = Self.clamp(requested, auto: auto)
 
         item.length = width
-        Preferences.boardWidth = width
+        if persist { Preferences.boardWidth = width }
+    }
+
+    /// Auto size may shrink the board far past the floor a dragging hand is
+    /// held to; see `Preferences.minimumAutoWidth`.
+    private static func clamp(_ requested: CGFloat, auto: Bool) -> Double {
+        let range = Preferences.boardWidthRange
+        let lower = auto ? Preferences.minimumAutoWidth : range.lowerBound
+        return min(max(Double(requested), lower), range.upperBound)
     }
 
     @objc private func toggleProgress() {

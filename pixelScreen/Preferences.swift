@@ -44,6 +44,7 @@ enum Preferences {
         static let boardWidth = "boardWidth"
         static let theme = "theme"
         static let layout = "layout"
+        static let autoSize = "autoSize"
         static let hdr = "hdr"
         static let feed = "feedURL"
         static let symbols = "stockSymbols"
@@ -72,6 +73,7 @@ enum Preferences {
             Key.boardWidth: defaultBoardWidth,
             Key.theme: BoardTheme.amber.id,
             Key.layout: BoardLayout.windows.rawValue,
+            Key.autoSize: true,
             Key.hdr: false,
             Key.feed: feedChoices[0].url,
             Key.symbols: defaultSymbols,
@@ -216,6 +218,15 @@ enum Preferences {
         return 140...max(defaultBoardWidth, screen * 0.29)
     }
 
+    /// How small the board may get when it is sizing itself.
+    ///
+    /// The 140pt floor above is there to stop someone dragging the board down
+    /// to a stub they can no longer grab. Auto size is not a hand on the grip
+    /// and has a reason for every column it drops, so it is allowed much
+    /// further — down to about the width of an ordinary menu bar icon, which
+    /// is still a comfortable click target for the menu.
+    static let minimumAutoWidth: Double = 24
+
     static var boardWidth: Double {
         get {
             let stored = UserDefaults.standard.double(forKey: Key.boardWidth)
@@ -231,6 +242,17 @@ enum Preferences {
     static var layout: BoardLayout {
         get { BoardLayout(rawValue: UserDefaults.standard.string(forKey: Key.layout) ?? "") ?? .windows }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.layout) }
+    }
+
+    /// Whether the board sizes itself to the windows that are open.
+    ///
+    /// With this on, a widget with nothing to say closes its window and the
+    /// board gives those columns back to the menu bar. Dragging the grip turns
+    /// it off, since a hand on the grip is someone asking for a width of their
+    /// own; the width they set is kept, so turning auto size off restores it.
+    static var autoSize: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.autoSize) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.autoSize) }
     }
 
     /// Dot columns a scrolling window needs before it stops being worth

@@ -334,6 +334,9 @@ final class TickerView: NSView {
         guard usesHDR else { return image }
 
         // Untagged, the extended values are just tone mapped back to SDR.
+        // Nothing reaches this below macOS 26 — `displaySupportsHDR` is false
+        // there, so `usesHDR` is too — but the compiler still wants the check.
+        guard #available(macOS 15.0, *) else { return image }
         return CGImageCreateCopyWithContentHeadroom(Float(hdrGain), image) ?? image
     }
 

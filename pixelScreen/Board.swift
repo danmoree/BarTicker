@@ -146,6 +146,12 @@ final class TextLayer: BoardLayer {
     /// Blank columns between the end of the text and its repeat.
     var gapColumns = 16
 
+    /// Blank columns held at the left of the layer's own zone before the text
+    /// begins. A window with another one beside it gets its gap from the rule
+    /// between them; a window at the edge of the board has nothing there, and
+    /// its first dot would otherwise sit flush against the panel edge.
+    var indent = 0
+
     /// How often a glyph with more than one drawing changes to the next.
     /// Three a second, so the sun's four-frame bloom takes a little over a
     /// second to breathe in and out: slow enough to read as one movement
@@ -311,7 +317,7 @@ final class TextLayer: BoardLayer {
         switch scroll {
         case .fixed:      return false
         case .always:     return true
-        case .ifOverflow: return bitmap.width > width
+        case .ifOverflow: return bitmap.width > width - indent
         }
     }
 
@@ -332,7 +338,10 @@ final class TextLayer: BoardLayer {
                       into columns: UnsafeMutableBufferPointer<DotColumn>,
                       offset: Int = 0, cycle: Int = 0, shift: Int) {
         for x in 0..<columns.count {
-            let source = cycle > 0 ? (offset + x) % cycle : x
+            let column = x - indent
+            guard column >= 0 else { continue }
+
+            let source = cycle > 0 ? (offset + column) % cycle : column
             var bits: DotColumn = 0
             for row in 0..<PixelFont.rows where bitmap.isOn(source, row) {
                 let panelRow = Board.textTop + row + shift
@@ -354,9 +363,8 @@ final class TextLayer: BoardLayer {
 final class DividerLayer: BoardLayer {
 
     /// Which column of its own zone the rule sits in, so the zone's remaining
-    /// columns act as the gap on either side. Set past the middle: text
-    /// arrives from the left and needs more clearance on that side than the
-    /// fixed content sitting after it.
+    /// columns act as the gap on either side. The middle of a five-wide zone,
+    /// which leaves two columns of air each way.
     var column = 2
 
     func render(into columns: UnsafeMutableBufferPointer<DotColumn>, at time: BoardTime) {

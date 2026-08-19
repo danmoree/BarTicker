@@ -27,6 +27,11 @@ struct Weather: Equatable {
     /// WMO weather interpretation code.
     var code: Int
 
+    /// Whether it is daylight where the reading came from. Reported by the
+    /// source rather than worked out from the clock here, so it follows the
+    /// actual sunrise at that latitude and time of year.
+    var isDay: Bool
+
     var place: String
 
     private static func degrees(_ celsius: Double, fahrenheit: Bool) -> Int {
@@ -46,7 +51,7 @@ struct Weather: Equatable {
     /// either side of it. The window turns over instead, the way the stock
     /// window does.
     func boardFrames(fahrenheit: Bool, highLow: Bool) -> [String] {
-        var frames = ["\(Weather.glyph(for: code)) \(degrees(fahrenheit: fahrenheit))\u{00B0}"]
+        var frames = ["\(Weather.glyph(for: code, isDay: isDay)) \(degrees(fahrenheit: fahrenheit))\u{00B0}"]
 
         if highLow, let high = highCelsius, let low = lowCelsius {
             frames.append("\u{25B2} \(Self.degrees(high, fahrenheit: fahrenheit))\u{00B0}")
@@ -70,10 +75,14 @@ struct Weather: Equatable {
     /// WMO code groups, collapsed to the handful of glyphs the font draws.
     /// Anything unrecognised falls back to cloud rather than showing the
     /// missing-glyph box.
-    static func glyph(for code: Int) -> Character {
+    ///
+    /// Only the two conditions the sun appears in have a night form. Rain at
+    /// midnight looks like rain at noon, and inventing a night version of it
+    /// would say something the reading does not.
+    static func glyph(for code: Int, isDay: Bool = true) -> Character {
         switch code {
-        case 0:              return "\u{2600}"   // clear
-        case 1, 2:           return "\u{26C5}"   // mainly clear / partly cloudy
+        case 0:              return isDay ? "\u{2600}" : "\u{263D}"   // clear
+        case 1, 2:           return isDay ? "\u{26C5}" : "\u{E000}"   // partly cloudy
         case 3:              return "\u{2601}"   // overcast
         case 45, 48:         return "\u{2261}"   // fog
         case 51...67, 80...82: return "\u{2602}" // drizzle, rain, showers
@@ -220,9 +229,14 @@ final class WeatherMonitor {
             let temperature: Double
             let code: Int
 
+            /// 1 by day, 0 by night. Optional so a source that stops sending
+            /// it leaves the board in daylight rather than permanent midnight.
+            let isDay: Int?
+
             enum CodingKeys: String, CodingKey {
                 case temperature = "temperature_2m"
                 case code = "weather_code"
+                case isDay = "is_day"
             }
         }
 
@@ -246,7 +260,7 @@ final class WeatherMonitor {
         components.queryItems = [
             URLQueryItem(name: "latitude", value: String(coordinate.latitude)),
             URLQueryItem(name: "longitude", value: String(coordinate.longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            URLQueryItem(name: "current", value: "temperature_2m,weather_code,is_day"),
             URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "forecast_days", value: "1"),
             // Without this the daily block is bucketed by GMT, so "today's
@@ -263,6 +277,7 @@ final class WeatherMonitor {
                                       highCelsius: response.daily?.high.first,
                                       lowCelsius: response.daily?.low.first,
                                       code: response.current.code,
+                                      isDay: (response.current.isDay ?? 1) != 0,
                                       place: self.place)
                 guard reading != self.current || self.trouble != nil else { return }
                 self.current = reading

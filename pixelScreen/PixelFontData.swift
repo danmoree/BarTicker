@@ -170,6 +170,17 @@ enum PixelFontData {
         "\u{2602}": ["..###..", ".#####.", "#######", "#######", ".#.#.#.", "#.#.#..", ".......", ".......", "......."],   // rain
         "\u{2744}": ["#..#..#", ".#.#.#.", "..###..", "#######", "..###..", ".#.#.#.", "#..#..#", ".......", "......."],   // snow
         "\u{26A1}": ["...##", "..##.", ".##..", "#####", "..##.", ".##..", "##...", ".....", "....."],   // thunderstorm
+
+        // Night forms of the two conditions the sun appears in. Everything
+        // else — cloud, rain, snow — looks the same after dark.
+        //
+        // The second one is a private-use codepoint: Unicode has no character
+        // for "moon behind cloud" in the basic plane, and the board only ever
+        // looks these up through `Weather.glyph`, so the key just has to be
+        // one nothing else claims.
+
+        "\u{263D}": ["..###.#.", ".###.###", "###...#.", "###.....", "###.....", ".###....", "..###...", "........", "........"],   // clear, at night
+        "\u{E000}": [".##..#.", "##..###", "##...#.", "##.....", ".##....", ".#####.", "#######", ".......", "......."],   // partly cloudy, at night
     ]
 
     // MARK: Animation
@@ -212,8 +223,44 @@ enum PixelFontData {
         "...#...", ".#...#.", "..###..", "#.###.#", "..###..", ".#####.", "#######", ".......", ".......",
     ]
 
+    /// The moon does not bloom — a crescent with rays coming off it would be
+    /// a sun wearing a costume. A star beside it twinkles instead: out, a
+    /// single dot, the full four points, back to a dot. Same four-frame shape
+    /// as the sun's bloom, so the two read as the same board doing the same
+    /// kind of thing at different hours.
+    ///
+    /// Only the widest frame reaches the last column. The others leave it
+    /// dark, and the group trim keeps the space reserved so the crescent never
+    /// shifts under the twinkle.
+
+    private static let moonBare = [
+        "..###...", ".###....", "###.....", "###.....", "###.....", ".###....", "..###...", "........", "........",
+    ]
+
+    private static let moonSpark = [
+        "..###...", ".###..#.", "###.....", "###.....", "###.....", ".###....", "..###...", "........", "........",
+    ]
+
+    private static let moonStar = [
+        "..###.#.", ".###.###", "###...#.", "###.....", "###.....", ".###....", "..###...", "........", "........",
+    ]
+
+    private static let cloudyMoonBare = [
+        ".##....", "##.....", "##.....", "##.....", ".##....", ".#####.", "#######", ".......", ".......",
+    ]
+
+    private static let cloudyMoonSpark = [
+        ".##....", "##...#.", "##.....", "##.....", ".##....", ".#####.", "#######", ".......", ".......",
+    ]
+
+    private static let cloudyMoonStar = [
+        ".##..#.", "##..###", "##...#.", "##.....", ".##....", ".#####.", "#######", ".......", ".......",
+    ]
+
     static let variants: [Character: [[String]]] = [
         "\u{2600}": [sunDisc, sunCompass, sunFull, sunCompass],
         "\u{26C5}": [cloudyDisc, cloudyCompass, cloudyFull, cloudyCompass],
+        "\u{263D}": [moonBare, moonSpark, moonStar, moonSpark],
+        "\u{E000}": [cloudyMoonBare, cloudyMoonSpark, cloudyMoonStar, cloudyMoonSpark],
     ]
 }

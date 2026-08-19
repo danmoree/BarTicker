@@ -94,7 +94,9 @@ struct YahooChartProvider: QuoteProvider {
         return URLSession(configuration: config)
     }()
 
-    private struct Response: Decodable {
+    // `nonisolated` because the decode happens on the URLSession callback,
+    // not the main actor the rest of the target defaults to.
+    private nonisolated struct Response: Decodable {
         struct Chart: Decodable {
             struct Result: Decodable {
                 struct Meta: Decodable {

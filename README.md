@@ -140,3 +140,16 @@ Two places: the bundle id has to be listed in `pixelScreen.entitlements` under
 `com.apple.security.temporary-exception.apple-events` (the sandbox requires
 each app be named individually), and the lookup itself goes in
 `NowPlaying.swift`.
+
+## License
+
+Copyright (C) 2026 Daniel Moreno.
+
+pixelScreen is free software, licensed under the GNU General Public License,
+version 3 or later — see [LICENSE](LICENSE). You can use, study, change and
+share it; if you distribute a modified version, that version has to be free
+software too, under the same terms.
+
+The name *pixelScreen* and the app icon (`docs/icon.png`) are not covered by
+that license — they're mine. Fork the code freely, but ship it under your own
+name and artwork.

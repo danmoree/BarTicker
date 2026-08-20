@@ -187,12 +187,10 @@ final class TickerView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         isPaused = true
-        previous = []           // repaint to show the grip
     }
 
     override func mouseExited(with event: NSEvent) {
         isPaused = false
-        previous = []
     }
 
     override func cursorUpdate(with event: NSEvent) {
@@ -274,23 +272,8 @@ final class TickerView: NSView {
             }
         }
 
-        // The grip is just more lit dots, so it goes in the buffer rather than
-        // into a separate pass: that way the change check below covers it too,
-        // and hovering doesn't need a repaint path of its own.
-        if isPaused { addGrip(to: &columns) }
-
         defer { previous = columns }
         return columns != previous
-    }
-
-    /// Two short vertical rules on the leading edge, shown only while the
-    /// pointer is over the board.
-    private func addGrip(to columns: inout [DotColumn]) {
-        for column in [0, 2] where column < columns.count {
-            for row in 2..<(Board.rows - 2) {
-                columns[column] |= (1 << DotColumn(row))
-            }
-        }
     }
 
     // MARK: Rendering

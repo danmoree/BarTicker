@@ -75,7 +75,7 @@ enum Preferences {
             Key.theme: BoardTheme.amber.id,
             Key.layout: BoardLayout.windows.rawValue,
             Key.autoSize: true,
-            Key.hdr: false,
+            Key.hdr: displaySupportsHDR,
             Key.feed: feedChoices[0].url,
             Key.symbols: defaultSymbols,
             Key.weatherPlace: guessedPlace,
@@ -296,9 +296,18 @@ enum Preferences {
         set { UserDefaults.standard.set(newValue.id, forKey: Key.theme) }
     }
 
-    /// Off by default. Apple's own note on the EDR properties is that they
-    /// "may have a significant impact on power consumption", and this view is
-    /// on screen all day.
+    /// On by default wherever the display can do it — it is the difference
+    /// between a picture of a sign and something that looks lit, and a board
+    /// that arrives looking its best is worth more than the power it costs.
+    /// Apple's note on the EDR properties is that they "may have a significant
+    /// impact on power consumption", and this view is on screen all day, so
+    /// the switch stays in the menu for anyone who would rather have the
+    /// battery.
+    ///
+    /// The default is registered at launch, so a display plugged in later
+    /// turns it on the next time the app starts rather than mid-session. An
+    /// answer already given — the switch touched either way — is stored, and
+    /// nothing here overrides it.
     static var hdr: Bool {
         get { UserDefaults.standard.bool(forKey: Key.hdr) }
         set { UserDefaults.standard.set(newValue, forKey: Key.hdr) }

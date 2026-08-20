@@ -90,6 +90,24 @@ Below that:
   Needs macOS 26, and greys itself out with the reason in the title when your
   display can't do it.
 
+## Install
+
+**[Download DotStrip.zip](https://github.com/danmoree/pixelScreen/releases/latest/download/DotStrip.zip)** — requires macOS 13 or later.
+
+Unzip it and drag **DotStrip.app** into your Applications folder, then open it.
+There is no dock icon and no window — the app appears straight in the menu bar
+as a panel you click to configure.
+
+It's signed and notarized by Apple, so it opens without a Gatekeeper warning.
+The only permission it asks for is Automation, the first time the Now Playing
+widget goes looking for Spotify or Music. If you decline, that widget stays
+empty until you re-allow it under System Settings → Privacy & Security →
+Automation; nothing else in the app is affected.
+
+---
+
+Everything below is for building it yourself.
+
 ## Requirements
 
 - macOS 13 or later

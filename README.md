@@ -13,6 +13,18 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/danmoree/pixelScreen/releases">
+    <img src="https://img.shields.io/github/v/release/danmoree/pixelScreen?label=release" alt="Latest release">
+  </a>
+  <a href="https://github.com/danmoree/pixelScreen/releases">
+    <img src="https://img.shields.io/github/downloads/danmoree/pixelScreen/total?label=downloads" alt="Total downloads">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/danmoree/pixelScreen?label=license" alt="License: GPL-3.0-or-later">
+  </a>
+</p>
+
+<p align="center">
   <img src="docs/desktop.jpg" alt="A macOS desktop with the DotStrip panel running in the menu bar" width="800">
 </p>
 

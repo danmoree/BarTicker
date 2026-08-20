@@ -65,12 +65,13 @@ nothing is antialiased into place:
 Clicking the panel opens everything there is to configure:
 
 <p align="center">
-  <img src="docs/menu.png" alt="The DotStrip menu, showing widget toggles and the layout, colour and speed submenus" width="682">
+  <img src="docs/menu.png" alt="The DotStrip menu, showing the plain-text read-out at the top, the widget toggles, and the layout, colour and speed submenus" width="553">
 </p>
 
-The three greyed rows at the top aren't controls, they're a read-out: the full
-track title, every quote you're tracking, and the current conditions, all in
-plain text. The panel only ever shows you a slice of that at a time, so this is
+The greyed rows at the top aren't controls, they're a read-out: one line per
+widget that's switched on — the full track title, how many headlines the feed
+has, every quote you're tracking, and the current conditions, all in plain
+text. The panel only ever shows you a slice of that at a time, so this is
 where you look when something has already scrolled past.
 
 Below that:

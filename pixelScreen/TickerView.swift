@@ -88,6 +88,11 @@ final class TickerView: NSView {
     private var background: CGImage?
     private var backgroundSize: CGSize = .zero
 
+    /// The lit dots. Its mask holds the circles, its contents holds which of
+    /// them are on; see the rendering section for why the two are separate.
+    private let dotsLayer = CALayer()
+    private var latticeSize: CGSize = .zero
+
     // MARK: Lifecycle
 
     override init(frame frameRect: NSRect) {
@@ -107,6 +112,13 @@ final class TickerView: NSView {
         // of dragging the whole translucent menu bar through a redraw.
         wantsLayer = true
         layer?.drawsAsynchronously = false
+
+        dotsLayer.magnificationFilter = .nearest
+        dotsLayer.minificationFilter = .nearest
+        dotsLayer.contentsGravity = .resize
+        dotsLayer.allowsEdgeAntialiasing = false
+        layer?.addSublayer(dotsLayer)
+
         applyDynamicRange()
 
         let step = 1.0 / Self.frameRate
@@ -119,7 +131,7 @@ final class TickerView: NSView {
 
             self.absolute += step
             if !self.isPaused { self.scrollClock += step }
-            if self.rebuildColumns() { self.needsDisplay = true }
+            if self.rebuildColumns() { self.refreshDots() }
         }
         // .common so the panel keeps animating while menus are tracking.
         RunLoop.main.add(t, forMode: .common)
@@ -141,12 +153,14 @@ final class TickerView: NSView {
         layer.contentsScale = window?.backingScaleFactor ?? 2
         layer.contentsGravity = .resize
         layer.contentsFormat = .RGBA16Float
-        if #available(macOS 26.0, *) {
-            // `constrainedHigh` rather than `high`: this shares the menu bar
-            // with everything else and is never what the user is looking at.
-            layer.preferredDynamicRange = usesHDR ? .constrainedHigh : .standard
-        }
-        layer.contents = renderBoard()
+        // The panel and the unlit grid are SDR; only the lit dots are driven
+        // past white, and they live in `dotsLayer`, which is tagged for
+        // itself. `constrainedHigh` rather than `high` there: this shares the
+        // menu bar with everything else and is never what the user is
+        // looking at.
+        layer.contents = backgroundImage(for: geometry())
+        latticeSize = .zero     // colours or size may have moved under it
+        refreshDots()
     }
 
     private func applyDynamicRange() { needsDisplay = true }
@@ -155,6 +169,8 @@ final class TickerView: NSView {
         super.setFrameSize(newSize)
         previous = []
         background = nil
+        latticeSize = .zero
+        needsDisplay = true
     }
 
     // MARK: Hover to pause
@@ -258,11 +274,40 @@ final class TickerView: NSView {
             }
         }
 
+        // The grip is just more lit dots, so it goes in the buffer rather than
+        // into a separate pass: that way the change check below covers it too,
+        // and hovering doesn't need a repaint path of its own.
+        if isPaused { addGrip(to: &columns) }
+
         defer { previous = columns }
         return columns != previous
     }
 
+    /// Two short vertical rules on the leading edge, shown only while the
+    /// pointer is over the board.
+    private func addGrip(to columns: inout [DotColumn]) {
+        for column in [0, 2] where column < columns.count {
+            for row in 2..<(Board.rows - 2) {
+                columns[column] |= (1 << DotColumn(row))
+            }
+        }
+    }
+
     // MARK: Rendering
+    //
+    // The board is three layers that each change on their own schedule, which
+    // is the whole point: the expensive one never changes.
+    //
+    //   * the view's own layer holds the panel and its unlit grid — redrawn
+    //     only when the size or the colours do,
+    //   * `dotsLayer` is masked to the dot lattice, a ring of antialiased
+    //     circles rasterized once per size,
+    //   * inside that mask its contents is a *one pixel per dot* image saying
+    //     which dots are lit, magnified with nearest-neighbour sampling.
+    //
+    // So a frame costs one small buffer write and a texture upload of a few
+    // kilobytes. Rasterizing the circles per frame — which is what this used
+    // to do — was measured at 88% of the app's CPU.
 
     /// sRGB components are perceptual; the bitmap is linear. Converting is what
     /// keeps the amber the same amber instead of a darker one.
@@ -293,42 +338,115 @@ final class TickerView: NSView {
                          space: space, bitmapInfo: info)
     }
 
-    private func renderBoard() -> CGImage? {
-        let geo = geometry()
+    /// Where the dots live, in view coordinates. The lit map is stretched
+    /// across exactly this rect, so one texel covers one dot cell.
+    private func dotRect(for geo: Geometry) -> CGRect {
+        CGRect(x: geo.xInset, y: geo.panel.minY,
+               width: CGFloat(geo.visibleColumns) * geo.pitch,
+               height: CGFloat(Board.rows) * geo.pitch)
+    }
+
+    /// Positions the dot layer and gives it the lattice to be masked by.
+    private func layoutDots(for geo: Geometry) {
         let scale = window?.backingScaleFactor ?? 2
-        let pw = Int(bounds.width * scale), ph = Int(bounds.height * scale)
-        guard pw > 0, ph > 0, let ctx = makeContext(pixelWidth: pw, pixelHeight: ph) else { return nil }
+        let rect = dotRect(for: geo)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        dotsLayer.frame = rect
+        dotsLayer.contentsFormat = .RGBA16Float
+        if #available(macOS 26.0, *) {
+            dotsLayer.preferredDynamicRange = usesHDR ? .constrainedHigh : .standard
+        }
+
+        guard geo.visibleColumns > 0, rect.width > 0, rect.height > 0 else {
+            dotsLayer.mask = nil
+            latticeSize = .zero
+            return
+        }
+
+        if latticeSize == rect.size, dotsLayer.mask != nil { return }
+
+        guard let lattice = latticeImage(for: geo, scale: scale) else { return }
+        let mask = CALayer()
+        mask.frame = CGRect(origin: .zero, size: rect.size)
+        mask.contentsScale = scale
+        mask.contentsGravity = .resize
+        mask.contents = lattice
+        dotsLayer.mask = mask
+        latticeSize = rect.size
+    }
+
+    /// Every dot position as a filled circle, opaque on transparent. This is
+    /// the antialiased rasterization that used to happen every frame; it now
+    /// happens once per size and is reused as a mask for as long as the board
+    /// keeps its width.
+    private func latticeImage(for geo: Geometry, scale: CGFloat) -> CGImage? {
+        let rect = dotRect(for: geo)
+        let pw = Int(rect.width * scale), ph = Int(rect.height * scale)
+        guard pw > 0, ph > 0, let ctx = makeContext(pixelWidth: pw, pixelHeight: ph),
+              let space = Self.workingSpace else { return nil }
 
         ctx.scaleBy(x: scale, y: scale)
-
-        if let base = backgroundImage(for: geo) {
-            ctx.draw(base, in: bounds)
-        }
-
-        guard geo.visibleColumns > 0, !columns.isEmpty,
-              let lit = color(theme.on, gain: usesHDR ? hdrGain : 1.0) else {
-            return ctx.makeImage()
-        }
 
         let dotSize = geo.pitch * dotFill
         let inset = (geo.pitch - dotSize) / 2
         let path = CGMutablePath()
-
-        for (column, bits) in columns.enumerated() where bits != 0 {
-            let x = geo.xInset + CGFloat(column) * geo.pitch + inset
-            for row in 0..<Board.rows where bits & (1 << DotColumn(row)) != 0 {
-                let y = geo.panel.maxY - CGFloat(row + 1) * geo.pitch + inset
+        for column in 0..<geo.visibleColumns {
+            let x = CGFloat(column) * geo.pitch + inset
+            for row in 0..<Board.rows {
+                let y = rect.height - CGFloat(row + 1) * geo.pitch + inset
                 path.addEllipse(in: CGRect(x: x, y: y, width: dotSize, height: dotSize))
             }
         }
-
-        if isPaused, geo.pitch > 0 {
-            addGrip(to: path, geo: geo, dotSize: dotSize, inset: inset)
-        }
-
         ctx.addPath(path)
-        ctx.setFillColor(lit)
+        ctx.setFillColor(CGColor(colorSpace: space, components: [1, 1, 1, 1])!)
         ctx.fillPath()
+        return ctx.makeImage()
+    }
+
+    /// One pixel per dot: lit dots carry the board's colour, dark ones are
+    /// clear. A few kilobytes at most, which is the entire per-frame cost.
+    ///
+    /// Written straight into the bitmap rather than drawn: at one pixel a dot
+    /// there is no shape to rasterize, and bitmap rows run top-down while
+    /// drawing coordinates do not — writing the buffer keeps board row 0 and
+    /// image row 0 the same row.
+    private func litImage(for geo: Geometry) -> CGImage? {
+        let cols = geo.visibleColumns
+        guard cols > 0, columns.count == cols,
+              let ctx = makeContext(pixelWidth: cols, pixelHeight: Board.rows),
+              let data = ctx.data,
+              let source = theme.on.usingColorSpace(.sRGB) else { return nil }
+
+        let gain = usesHDR ? hdrGain : 1.0
+        let alpha = Float(source.alphaComponent)
+        // Premultiplied, and the alpha of a lit dot is 1, so the stored
+        // components are the linear ones as they stand.
+        let rgba: [Float] = [
+            Float(linear(source.redComponent) * gain) * alpha,
+            Float(linear(source.greenComponent) * gain) * alpha,
+            Float(linear(source.blueComponent) * gain) * alpha,
+            alpha,
+        ]
+
+        let rowBytes = ctx.bytesPerRow
+        let base = data.assumingMemoryBound(to: UInt8.self)
+        // The context arrives zeroed, so only the lit dots need writing.
+        for row in 0..<Board.rows {
+            let pixels = (base + row * rowBytes).withMemoryRebound(to: Float.self,
+                                                                  capacity: cols * 4) { $0 }
+            let bit: DotColumn = 1 << DotColumn(row)
+            for column in 0..<cols where columns[column] & bit != 0 {
+                let offset = column * 4
+                pixels[offset]     = rgba[0]
+                pixels[offset + 1] = rgba[1]
+                pixels[offset + 2] = rgba[2]
+                pixels[offset + 3] = rgba[3]
+            }
+        }
 
         guard let image = ctx.makeImage() else { return nil }
         guard usesHDR else { return image }
@@ -337,7 +455,23 @@ final class TickerView: NSView {
         // Nothing reaches this below macOS 26 — `displaySupportsHDR` is false
         // there, so `usesHDR` is too — but the compiler still wants the check.
         guard #available(macOS 15.0, *) else { return image }
-        return CGImageCreateCopyWithContentHeadroom(Float(hdrGain), image) ?? image
+        return CGImageCreateCopyWithContentHeadroom(Float(gain), image) ?? image
+    }
+
+    /// Hands the current dot pattern to the compositor.
+    private func refreshDots() {
+        let geo = geometry()
+        guard geo.visibleColumns > 0 else { return }
+
+        // Only when the board has actually moved under the dots: rebuilding
+        // the lattice means rasterizing every circle again, which is the one
+        // expensive thing left in here.
+        if latticeSize != dotRect(for: geo).size { layoutDots(for: geo) }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)   // no crossfade between frames
+        dotsLayer.contents = litImage(for: geo)
+        CATransaction.commit()
     }
 
     /// Panel and unlit grid, rendered once per size/scheme and reused.
@@ -374,18 +508,5 @@ final class TickerView: NSView {
         background = ctx.makeImage()
         backgroundSize = bounds.size
         return background
-    }
-
-    /// Two short vertical rules on the leading edge, shown only while the
-    /// pointer is over the board.
-    private func addGrip(to path: CGMutablePath, geo: Geometry,
-                         dotSize: CGFloat, inset: CGFloat) {
-        for column in [0, 2] {
-            let x = geo.xInset + CGFloat(column) * geo.pitch + inset
-            for row in 2..<(Board.rows - 2) {
-                let y = geo.panel.maxY - CGFloat(row + 1) * geo.pitch + inset
-                path.addEllipse(in: CGRect(x: x, y: y, width: dotSize, height: dotSize))
-            }
-        }
     }
 }

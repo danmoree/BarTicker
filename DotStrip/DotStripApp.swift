@@ -679,10 +679,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }, action: #selector(chooseSpeed(_:))))
 
         menu.addItem(.separator())
+        menu.addItem(credit())
         let quit = NSMenuItem(title: "Quit DotStrip",
                               action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         menu.addItem(quit)
+    }
+
+    /// The byline at the foot of the menu.
+    ///
+    /// Set as an attributed title rather than a plain one: a disabled item is
+    /// drawn in the greyed-out colour, which says "unavailable" about a line
+    /// that is only there to be read. Smaller and secondary says "footer".
+    private func credit() -> NSMenuItem {
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        item.attributedTitle = NSAttributedString(
+            string: "Created by Daniel Moreno \u{00B7} 2026",
+            attributes: [
+                .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ])
+        return item
     }
 
     /// One line per widget that's on, so the menu says what the board is

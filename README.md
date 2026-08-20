@@ -7,6 +7,12 @@
 <p align="center">A dot-matrix LED sign that lives in your macOS menu bar.</p>
 
 <p align="center">
+  <a href="https://github.com/danmoree/pixelScreen/releases/latest/download/DotStrip.zip">
+    <img src="docs/download-mac.png" alt="Download DotStrip for macOS" width="220">
+  </a>
+</p>
+
+<p align="center">
   <img src="docs/desktop.jpg" alt="A macOS desktop with the DotStrip panel running in the menu bar" width="800">
 </p>
 

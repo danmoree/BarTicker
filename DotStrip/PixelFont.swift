@@ -1,6 +1,6 @@
 //
 //  PixelFont.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Composes lines of text from the hand-drawn glyphs in PixelFontData.
 //

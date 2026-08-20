@@ -1,6 +1,6 @@
 //
 //  Board.swift
-//  pixelScreen
+//  DotStrip
 //
 //  The panel is a grid of dots that several independent things draw into at
 //  once: a scrolling headline, a VU meter, a progress bar. Rather than one

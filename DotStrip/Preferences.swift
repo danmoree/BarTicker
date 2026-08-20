@@ -1,6 +1,6 @@
 //
 //  Preferences.swift
-//  pixelScreen
+//  DotStrip
 //
 
 import AppKit
@@ -49,6 +49,7 @@ enum Preferences {
         static let feed = "feedURL"
         static let symbols = "stockSymbols"
         static let weatherPlace = "weatherPlace"
+        static let weatherDetail = "weatherDetail"
         static let weatherLatitude = "weatherLatitude"
         static let weatherLongitude = "weatherLongitude"
         static let weatherResolved = "weatherResolvedPlace"
@@ -165,6 +166,36 @@ enum Preferences {
         set { UserDefaults.standard.set(newValue, forKey: Key.weatherPlace) }
     }
 
+    /// Region and country for the place above, once something has actually
+    /// resolved it. Nil until then — the time zone's guess is a bare name,
+    /// and claiming a region for it would be inventing one.
+    static var weatherDetail: String? {
+        get { UserDefaults.standard.string(forKey: Key.weatherDetail) }
+        set {
+            let defaults = UserDefaults.standard
+            guard let newValue, !newValue.isEmpty else {
+                return defaults.removeObject(forKey: Key.weatherDetail)
+            }
+            defaults.set(newValue, forKey: Key.weatherDetail)
+        }
+    }
+
+    /// The place said in full, for the menu: "Paris, Île-de-France, France".
+    /// Falls back to the bare name while nothing has been resolved yet.
+    static var weatherLabel: String {
+        guard let detail = weatherDetail, !detail.isEmpty else { return weatherPlace }
+        return "\(weatherPlace), \(detail)"
+    }
+
+    /// Name, region and coordinates written together, so the three can never
+    /// end up describing different towns.
+    static func setWeatherLocation(name: String, detail: String?,
+                                   latitude: Double, longitude: Double) {
+        weatherPlace = name
+        weatherDetail = detail
+        weatherCoordinate = (latitude, longitude)
+    }
+
     /// Coordinates are stored alongside the name they were looked up for, so a
     /// changed place is detectable and a stable one never gets geocoded twice.
     static var weatherCoordinate: (latitude: Double, longitude: Double)? {
@@ -279,13 +310,6 @@ enum Preferences {
     static var displaySupportsHDR: Bool {
         guard #available(macOS 26.0, *) else { return false }
         return (NSScreen.main?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1) > 1.0
-    }
-
-    /// What the display is granting this instant, which is not the same as what
-    /// it is capable of: headroom is handed out dynamically and sits at 1.0
-    /// until the display has room above SDR white to give.
-    static var currentHeadroom: CGFloat {
-        NSScreen.main?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
     }
 
     static var showProgress: Bool {

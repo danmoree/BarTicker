@@ -1,6 +1,6 @@
 //
 //  Weather.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Current conditions for the weather widget, from Open-Meteo.
 //
@@ -107,11 +107,6 @@ struct Weather: Equatable {
     }
 }
 
-/// A failure worth reporting in the menu, carrying its own wording.
-private struct FetchFailure: Error {
-    let message: String
-}
-
 final class WeatherMonitor {
 
     private(set) var current: Weather?
@@ -119,18 +114,45 @@ final class WeatherMonitor {
 
     var onChange: (() -> Void)?
 
-    /// The place name to report for. Setting it to something new throws away
-    /// the cached coordinates and looks the name up again.
-    var place: String = Preferences.weatherPlace {
-        didSet {
-            guard place != oldValue else { return }
-            Preferences.weatherPlace = place
+    private var reporting: String = Preferences.weatherPlace
+
+    /// The place name to report for. Setting it to a bare name throws away the
+    /// cached coordinates and looks the name up again, so it is the route for
+    /// a name with nothing behind it; a place the user picked comes in through
+    /// `use(_:)` with its coordinates already attached.
+    var place: String {
+        get { reporting }
+        set {
+            guard newValue != reporting else { return }
+            reporting = newValue
+            Preferences.weatherPlace = newValue
+            Preferences.weatherDetail = nil
             Preferences.weatherCoordinate = nil
-            current = nil
-            trouble = nil
-            onChange?()
-            refresh()
+            restart()
         }
+    }
+
+    /// Adopts a place the user picked from a list of candidates.
+    ///
+    /// This is the route that skips geocoding entirely: the coordinates came
+    /// back with the choice, so there is no name left to resolve and no chance
+    /// of resolving it to the wrong one of two towns. Two places can share a
+    /// name, so this refreshes even when the name has not changed.
+    func use(_ chosen: GeocodedPlace) {
+        reporting = chosen.name
+        Preferences.setWeatherLocation(name: chosen.name, detail: chosen.detail,
+                                       latitude: chosen.latitude, longitude: chosen.longitude)
+        restart()
+    }
+
+    /// Drops the reading for the old place and goes after the new one. The
+    /// board shows the source's status line in the gap rather than last hour's
+    /// temperature under this hour's city.
+    private func restart() {
+        current = nil
+        trouble = nil
+        onChange?()
+        refresh()
     }
 
     /// Conditions don't move faster than this, and Open-Meteo itself only
@@ -140,7 +162,7 @@ final class WeatherMonitor {
     private var timer: Timer?
     private var task: URLSessionDataTask?
 
-    private let log = Logger(subsystem: "com.danielmoreno.projects.pixelScreen",
+    private let log = Logger(subsystem: "com.danielmoreno.projects.DotStrip",
                              category: "weather")
 
     private lazy var session: URLSession = {
@@ -187,33 +209,31 @@ final class WeatherMonitor {
 
     // MARK: Geocoding
 
-    private struct GeocodeResponse: Decodable {
-        struct Place: Decodable {
-            let name: String
-            let latitude: Double
-            let longitude: Double
-        }
-        let results: [Place]?
-    }
-
+    /// Resolves a bare name, which at this point means the time zone's guess
+    /// at launch: anything the user chose arrived with its coordinates.
+    ///
+    /// It asks for the whole shortlist rather than one result so it can take
+    /// the largest exact match instead of whichever the ranking favoured, and
+    /// it writes down which place it settled on. That last part is what lets
+    /// the menu say "Paris, Île-de-France, France" — a guess the user can see
+    /// is wrong is a guess they can fix.
     private func geocode(then handle: @escaping ((latitude: Double, longitude: Double)?) -> Void) {
-        var components = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")!
-        components.queryItems = [
-            URLQueryItem(name: "name", value: place),
-            URLQueryItem(name: "count", value: "1"),
-            URLQueryItem(name: "language", value: "en"),
-            URLQueryItem(name: "format", value: "json"),
-        ]
-        guard let url = components.url else { return handle(nil) }
-
-        get(url, as: GeocodeResponse.self) { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let response):
-                guard let match = response.results?.first else {
-                    self.report(trouble: "No place called \u{201C}\(self.place)\u{201D}")
+        let wanted = place
+        PlaceSearch.run(wanted) { [weak self] outcome in
+            guard let self, self.place == wanted else { return }
+            switch outcome {
+            case .success(let places):
+                guard let match = PlaceSearch.best(of: places, for: wanted) else {
+                    self.report(trouble: "No place called \u{201C}\(wanted)\u{201D}")
                     return handle(nil)
                 }
+                // Straight to the backing name: this is the answer to the
+                // request in flight, not a new one, and going through `place`
+                // would throw away the coordinates it just resolved.
+                self.reporting = match.name
+                Preferences.setWeatherLocation(name: match.name, detail: match.detail,
+                                               latitude: match.latitude,
+                                               longitude: match.longitude)
                 handle((match.latitude, match.longitude))
             case .failure(let failure):
                 self.report(trouble: failure.message)

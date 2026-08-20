@@ -1,6 +1,6 @@
 //
 //  PixelFontData.swift
-//  pixelScreen
+//  DotStrip
 //
 //  A hand-drawn 5x7 dot-matrix font, the kind real LED signs use.
 //

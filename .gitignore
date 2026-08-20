@@ -25,3 +25,7 @@ Package.resolved
 # CocoaPods / Carthage (unused today, harmless to keep)
 Pods/
 Carthage/Build/
+
+# Python (tools/)
+__pycache__/
+*.pyc

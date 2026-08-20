@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "6517520D3034174B005D9AA9"
-               BuildableName = "pixelScreen.app"
-               BlueprintName = "pixelScreen"
-               ReferencedContainer = "container:pixelScreen.xcodeproj">
+               BuildableName = "DotStrip.app"
+               BlueprintName = "DotStrip"
+               ReferencedContainer = "container:DotStrip.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6517520D3034174B005D9AA9"
-            BuildableName = "pixelScreen.app"
-            BlueprintName = "pixelScreen"
-            ReferencedContainer = "container:pixelScreen.xcodeproj">
+            BuildableName = "DotStrip.app"
+            BlueprintName = "DotStrip"
+            ReferencedContainer = "container:DotStrip.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "6517520D3034174B005D9AA9"
-            BuildableName = "pixelScreen.app"
-            BlueprintName = "pixelScreen"
-            ReferencedContainer = "container:pixelScreen.xcodeproj">
+            BuildableName = "DotStrip.app"
+            BlueprintName = "DotStrip"
+            ReferencedContainer = "container:DotStrip.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

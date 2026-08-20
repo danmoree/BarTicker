@@ -1,6 +1,6 @@
 //
 //  Stocks.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Quotes for the stock ticker.
 //
@@ -90,7 +90,7 @@ struct YahooChartProvider: QuoteProvider {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 20
         config.waitsForConnectivity = true
-        config.httpAdditionalHeaders = ["User-Agent": "pixelScreen/1.0"]
+        config.httpAdditionalHeaders = ["User-Agent": "DotStrip/1.0"]
         return URLSession(configuration: config)
     }()
 
@@ -118,7 +118,7 @@ struct YahooChartProvider: QuoteProvider {
         // Each symbol is its own request, so results are collected on a serial
         // queue rather than assumed to arrive in order.
         let group = DispatchGroup()
-        let collector = DispatchQueue(label: "pixelScreen.quotes")
+        let collector = DispatchQueue(label: "DotStrip.quotes")
         var found: [String: Quote] = [:]
         var unknown: [String] = []
         var failure: String?
@@ -216,7 +216,7 @@ final class StockMonitor {
     private var timer: Timer?
     private var lastFetch: Date?
 
-    private let log = Logger(subsystem: "com.danielmoreno.projects.pixelScreen",
+    private let log = Logger(subsystem: "com.danielmoreno.projects.DotStrip",
                              category: "stocks")
 
     // MARK: Lifecycle

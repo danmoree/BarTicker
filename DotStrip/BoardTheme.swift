@@ -1,6 +1,6 @@
 //
 //  BoardTheme.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Colour schemes for the panel.
 //

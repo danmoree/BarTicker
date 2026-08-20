@@ -1,6 +1,6 @@
 //
 //  NowPlaying.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Reads the currently playing track from Spotify or Music.
 //
@@ -77,7 +77,7 @@ final class NowPlayingMonitor {
     private var hasReported = false
     private var lastRefresh: CFTimeInterval = 0
 
-    private let log = Logger(subsystem: "com.danielmoreno.projects.pixelScreen",
+    private let log = Logger(subsystem: "com.danielmoreno.projects.DotStrip",
                              category: "nowPlaying")
 
     // MARK: Lifecycle

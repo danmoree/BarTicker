@@ -1,6 +1,6 @@
 //
 //  TickerView.swift
-//  pixelScreen
+//  DotStrip
 //
 //  An LED-style dot panel. It scrolls in whole dot-columns rather than smooth
 //  subpixel steps, which is what makes it read as a physical board.

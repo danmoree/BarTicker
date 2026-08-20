@@ -1,6 +1,6 @@
 //
 //  Feed.swift
-//  pixelScreen
+//  DotStrip
 //
 //  Headlines for the news ticker, from any RSS or Atom feed.
 //
@@ -47,14 +47,14 @@ final class FeedMonitor {
     private var timer: Timer?
     private var task: URLSessionDataTask?
 
-    private let log = Logger(subsystem: "com.danielmoreno.projects.pixelScreen",
+    private let log = Logger(subsystem: "com.danielmoreno.projects.DotStrip",
                              category: "feed")
 
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 20
         config.waitsForConnectivity = true
-        config.httpAdditionalHeaders = ["User-Agent": "pixelScreen/1.0"]
+        config.httpAdditionalHeaders = ["User-Agent": "DotStrip/1.0"]
         return URLSession(configuration: config)
     }()
 

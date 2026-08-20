@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="docs/icon.png" alt="pixelScreen icon" width="128" height="128">
+  <img src="docs/icon.png" alt="DotStrip icon" width="128" height="128">
 </p>
 
-<h1 align="center">pixelScreen</h1>
+<h1 align="center">DotStrip</h1>
 
 <p align="center">A dot-matrix LED sign that lives in your macOS menu bar.</p>
 
 <p align="center">
-  <img src="docs/desktop.jpg" alt="A macOS desktop with the pixelScreen panel running in the menu bar" width="800">
+  <img src="docs/desktop.jpg" alt="A macOS desktop with the DotStrip panel running in the menu bar" width="800">
 </p>
 
 It renders a real dot grid in the status bar and scrolls whatever you turn on
@@ -22,7 +22,7 @@ Everything is configured from the menu you get by clicking the panel.
 ## What you're looking at
 
 <p align="center">
-  <img src="docs/demo.gif" alt="The pixelScreen panel scrolling a track title alongside a stock quote and the temperature" width="457">
+  <img src="docs/demo.gif" alt="The DotStrip panel scrolling a track title alongside a stock quote and the temperature" width="457">
 </p>
 
 <p align="center"><em>Actual size — that really is how much menu bar it takes up.</em></p>
@@ -47,7 +47,7 @@ nothing is antialiased into place:
 Clicking the panel opens everything there is to configure:
 
 <p align="center">
-  <img src="docs/menu.png" alt="The pixelScreen menu, showing widget toggles and the layout, colour and speed submenus" width="682">
+  <img src="docs/menu.png" alt="The DotStrip menu, showing widget toggles and the layout, colour and speed submenus" width="682">
 </p>
 
 The three greyed rows at the top aren't controls, they're a read-out: the full
@@ -58,13 +58,16 @@ where you look when something has already scrolled past.
 Below that:
 
 - **Show** — which widgets get a zone. **Symbols** edits the stock list,
-  **Location** and **Units** the weather.
+  **Location** and **Units** the weather. **Location** opens a search rather
+  than a text box: every match comes back with its region, population and
+  coordinates, so you pick the Springfield you meant instead of finding out
+  three days later that the forecast was for a different one.
 - **Layout** — *Separate Windows* gives each widget its own zone scrolling
   independently, the way a multi-panel sign works; *One Shared Band* makes them
   take turns across the full width instead. The width controls (**Auto Size**,
   **Fit Width to Windows**) only apply to the first one.
 - **Color** — five schemes, each drawn as a swatch in the menu so you can tell
-  them apart: Amber (shown throughout this README), Green, Red, Ice and Mono.
+  them apart: Amber (shown throughout this README), Green, Red, Ice and White.
 - **HDR Glow** — drives the lit dots past SDR white on a display with headroom.
   Needs macOS 26, and greys itself out with the reason in the title when your
   display can't do it.
@@ -79,7 +82,7 @@ No package manager, no dependencies, nothing to install. Clone and open.
 ## Building
 
 ```
-open pixelScreen.xcodeproj
+open DotStrip.xcodeproj
 ```
 
 Then pick your own signing team the first time:
@@ -88,7 +91,7 @@ Then pick your own signing team the first time:
 
 The team is deliberately left blank in the project so it doesn't carry one
 developer's ID into everyone else's checkout. You may also want to change
-`PRODUCT_BUNDLE_IDENTIFIER` from `com.danielmoreno.projects.pixelScreen` to
+`PRODUCT_BUNDLE_IDENTIFIER` from `com.danielmoreno.projects.DotStrip` to
 something under your own domain.
 
 A free personal Apple ID team is enough — the app is sandboxed but uses no
@@ -98,7 +101,7 @@ all, which is the fastest way to just try it.
 From the command line:
 
 ```
-xcodebuild -scheme pixelScreen -configuration Debug build
+xcodebuild -scheme DotStrip -configuration Debug build
 ```
 
 ## Services it talks to
@@ -121,7 +124,7 @@ until you re-allow it under System Settings → Privacy & Security → Automatio
 
 | File | What's in it |
 |------|--------------|
-| `pixelScreenApp.swift` | App delegate, status item, and the whole menu |
+| `DotStripApp.swift` | App delegate, status item, and the whole menu |
 | `TickerView.swift` | The dot panel view — geometry, clock, drawing |
 | `Board.swift` | Zone layout: how widgets share the panel's columns |
 | `BoardTheme.swift` | Colour schemes |
@@ -134,9 +137,13 @@ with `Board.swift` if you want to add a widget, and `PixelFontData.swift` if
 you want to change how a character looks (the source art is literal ASCII;
 what you see is what lights up).
 
+The icon is the panel too — the `D` on it is the same `PixelFontData` glyph the
+board would draw. `tools/make_icon.py` relights it, so `python3
+tools/make_icon.py D E` gives you the whole icon set showing an `E` instead.
+
 ## Adding a scriptable music player
 
-Two places: the bundle id has to be listed in `pixelScreen.entitlements` under
+Two places: the bundle id has to be listed in `DotStrip.entitlements` under
 `com.apple.security.temporary-exception.apple-events` (the sandbox requires
 each app be named individually), and the lookup itself goes in
 `NowPlaying.swift`.
@@ -145,11 +152,11 @@ each app be named individually), and the lookup itself goes in
 
 Copyright (C) 2026 Daniel Moreno.
 
-pixelScreen is free software, licensed under the GNU General Public License,
+DotStrip is free software, licensed under the GNU General Public License,
 version 3 or later — see [LICENSE](LICENSE). You can use, study, change and
 share it; if you distribute a modified version, that version has to be free
 software too, under the same terms.
 
-The name *pixelScreen* and the app icon (`docs/icon.png`) are not covered by
+The name *DotStrip* and the app icon (`docs/icon.png`) are not covered by
 that license — they're mine. Fork the code freely, but ship it under your own
 name and artwork.

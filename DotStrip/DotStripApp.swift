@@ -1,6 +1,6 @@
 //
-//  pixelScreenApp.swift
-//  pixelScreen
+//  DotStripApp.swift
+//  DotStrip
 //
 //  Created by Daniel Moreno on 8/17/26.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct pixelScreenApp: App {
+struct DotStripApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
@@ -151,9 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Starts and stops the sources to match what's switched on, then lays the
     /// panel out again. Nothing polls or fetches for a widget that is off.
     private func applyWidgets() {
-        for line in [crawl, trackLine, newsLine, stockLine] {
-            line.columnsPerSecond = Preferences.scrollSpeed
-        }
+        applyScrollSpeed()
 
         if Preferences.isOn(.nowPlaying) {
             nowPlaying.start()
@@ -618,7 +616,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if Preferences.isOn(.weather) {
             menu.addItem(.separator())
-            let location = NSMenuItem(title: "Location: \(Preferences.weatherPlace)\u{2026}",
+            // The region and country are part of the title, not a detail
+            // tucked away: which of the world's several Portlands this is
+            // should be answerable without opening anything.
+            let location = NSMenuItem(title: "Location: \(Preferences.weatherLabel)\u{2026}",
                                       action: #selector(chooseLocation), keyEquivalent: "")
             location.target = self
             menu.addItem(location)
@@ -678,7 +679,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }, action: #selector(chooseSpeed(_:))))
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit pixelScreen",
+        let quit = NSMenuItem(title: "Quit DotStrip",
                               action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         menu.addItem(quit)
@@ -733,15 +734,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return lines.isEmpty ? ["Nothing to show"] : lines
     }
 
-    /// Headroom is granted dynamically, so a display that is capable in
-    /// principle can still be offering nothing at this brightness. Saying so
-    /// here beats letting the switch look broken.
+    /// Only the two cases that actually disable the switch get spelled out.
+    /// Momentary headroom is not one of them: it sits at 1.0 until something
+    /// asks for it, so reporting it would nag about a state the toggle works in.
     private var hdrItemTitle: String {
         // The headroom tagging this needs only exists from macOS 26 on, so
         // say that rather than blaming a display that may well be capable.
         guard #available(macOS 26.0, *) else { return "HDR Glow (needs macOS 26)" }
-        guard Preferences.displaySupportsHDR else { return "HDR Glow (display has no headroom)" }
-        return Preferences.currentHeadroom > 1.0 ? "HDR Glow" : "HDR Glow — no headroom right now"
+        return Preferences.displaySupportsHDR ? "HDR Glow" : "HDR Glow (display has no headroom)"
     }
 
     private func header(_ title: String) -> NSMenuItem {
@@ -862,7 +862,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         feed.url = Preferences.feedURL
-        rebuildCrawl()
+        rebuildContent()
     }
 
     @objc private func addSymbol() {
@@ -878,7 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         Preferences.stockSymbols = symbols
         stocks.symbols = symbols
-        rebuildCrawl()
+        rebuildContent()
     }
 
     @objc private func removeSymbol(_ sender: NSMenuItem) {
@@ -887,14 +887,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         Preferences.stockSymbols = symbols
         stocks.symbols = symbols
-        rebuildCrawl()
+        rebuildContent()
     }
 
     @objc private func chooseLocation() {
-        guard let entered = ask("Weather location",
-                                explanation: "A city or town name.",
-                                value: Preferences.weatherPlace) else { return }
-        weather.place = entered
+        LocationPicker.shared.present(query: Preferences.weatherPlace) { [weak self] place in
+            self?.weather.use(place)
+        }
     }
 
     @objc private func toggleHighLow() {
@@ -1068,7 +1067,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func chooseSpeed(_ sender: NSMenuItem) {
         guard let speed = sender.representedObject as? Double else { return }
         Preferences.scrollSpeed = speed
-        crawl.columnsPerSecond = speed
-        trackLine.columnsPerSecond = speed
+        applyScrollSpeed()
+    }
+
+    /// Every line that can crawl, so a new speed reaches the windows layout
+    /// too — the news and stock lines are the ones actually moving there.
+    private func applyScrollSpeed() {
+        for line in [crawl, trackLine, newsLine, stockLine] {
+            line.columnsPerSecond = Preferences.scrollSpeed
+        }
     }
 }
